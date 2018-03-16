@@ -39,7 +39,7 @@ The interval that Erlang needs to communicate with `heart` can be different from
 the interval that `heart` pets the hardware watchdog. The default for Erlang is
 60 seconds. If this is too long, update your `rel/vm.args` like follows:
 
-``erlang
+```erlang
 -heart -env HEART_BEAT_TIMEOUT 30
 ```
 
@@ -59,5 +59,3 @@ iex> :heart.set_cmd("attack")
 
 If anyone knows of an easy way of making the Erlang VM unresponsive, please let
 me know or send a PR to fill in this section.
-
-
