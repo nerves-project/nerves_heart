@@ -9,10 +9,14 @@ changes:
 
 1. Support for hardware watchdogs so that if both the Erlang runtime and
    `heart` become unresponsive, the hardware watchdog can reboot the system
-2. Directly calls
+2. Only monotonic time is used. The Erlang implementation of `heart` could use
+   wall clock time and reboot the system for time changes larger than the
+   heartbeat period. This is obviously not desirable on Nerves devices that run
+   code on the Erlang VM that initializes the system clock.
+3. Directly calls
    [reboot(2)](http://man7.org/linux/man-pages/man2/reboot.2.html). The reboot
    call is not configurable nor is it necessary to invoke another program.
-3. Simplified code base. Code not needed for Nerves devices has been removed to
+4. Simplified code base. Code not needed for Nerves devices has been removed to
    make the program easier to audit.
 
 ## Using
