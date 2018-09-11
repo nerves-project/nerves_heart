@@ -1,5 +1,7 @@
 # nerves_heart
 
+[![CircleCI](https://circleci.com/gh/nerves-project/nerves_heart.svg?style=svg)](https://circleci.com/gh/nerves-project/nerves_heart)
+
 This is a replacement for Erlang's `heart` port process specifically for
 Nerves-based devices. [Heart](http://erlang.org/doc/man/heart.html) monitors the
 Erlang runtime using heartbeat messages. If the Erlang runtime becomes
