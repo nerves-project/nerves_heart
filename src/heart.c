@@ -62,7 +62,7 @@
  *  This program communicates with Erlang through the standard
  *  input and output file descriptors (0 and 1). These descriptors
  *  (and the standard error descriptor 2) must NOT be closed
- *  explicitely by this program at termination (in UNIX it is
+ *  explicitly by this program at termination (in UNIX it is
  *  taken care of by the operating system itself).
  *
  *  END OF FILE
@@ -300,7 +300,7 @@ static int message_loop()
                 case SET_CMD:
                     /* If the user specifies "attack", turn of the hw watchdog petter to verify that the system reboots. */
                     if (mp->len > 6 && memcmp(mp->fill, "attack", 6) == 0) {
-                        warnx("ATTACK!!!");
+                        warnx("Petting of the hardware watchdog is disabled. System should reboot momentarily.");
 
                         /* Disable petting of the hardware watchdog */
                         watchdog_open_retries = 0;
