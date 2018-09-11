@@ -494,11 +494,8 @@ static int heart_cmd_reply(const char *s)
  */
 static int write_message(int fd, const struct msg *mp)
 {
-    int   len;
-    const char *tmp;
+    int len = ntohs(mp->len);
 
-    tmp = (const char *) & (mp->len);
-    len = (*tmp * 256) + *(tmp + 1);
     if ((len == 0) || (len > MSG_BODY_SIZE)) {
         return MSG_HDR_SIZE;
     }             /* cc68k wants (char *) */
