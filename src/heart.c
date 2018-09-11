@@ -81,7 +81,6 @@
 
 #include <string.h>
 #include <errno.h>
-#include <err.h>
 
 #include <time.h>
 #include <signal.h>
@@ -162,6 +161,20 @@ static const char *watchdog_path = "/dev/watchdog0";
 static int watchdog_open_retries = 10;
 static int watchdog_fd = -1;
 
+static void print_log(const char *format, ...)
+{
+    va_list ap;
+    va_start(ap, format);
+
+    char buffer[256];
+    int len = vsnprintf(buffer, sizeof(buffer), format, ap);
+    if (len > 0) {
+        int ignore = write(STDERR_FILENO, buffer, len);
+        (void) ignore;
+    }
+    va_end(ap);
+}
+
 static void pet_watchdog()
 {
     /* The watchdog device sometimes takes a bit to appear, so give it a few tries. */
@@ -171,17 +184,17 @@ static void pet_watchdog()
 
         watchdog_fd = open(watchdog_path, O_WRONLY);
         if (watchdog_fd > 0) {
-            warnx("Kernel watchdog activated (interval %ds)", SELECT_TIMEOUT);
+            print_log("heart: kernel watchdog activated (interval %ds)", SELECT_TIMEOUT);
         } else {
             watchdog_open_retries--;
             if (watchdog_open_retries <= 0)
-                warn("Can't open '%s'. Running without kernel watchdog.", watchdog_path);
+                print_log("heart: can't open '%s'. Running without kernel watchdog: %s", watchdog_path, strerror(errno));
             return;
         }
     }
 
     if (write(watchdog_fd, "\0", 1) < 0)
-        warn("Error petting watchdog");
+        print_log("heart: error petting watchdog: %s", strerror(errno));
 }
 
 static int is_env_set(char *key)
@@ -235,6 +248,16 @@ static void get_arguments(int argc, char **argv)
 
 int main(int argc, char **argv)
 {
+    // See if we can log directly to the kernel log. If so, then use it for
+    // warnings and errors since that will get them to the Elixir logger via
+    // Nerves.Runtime or give them the best chance of being seen if everything
+    // else is broke.
+    int log_fd = open("/dev/kmsg", O_WRONLY | O_CLOEXEC);
+    if (log_fd >= 0) {
+        dup2(log_fd, STDERR_FILENO);
+        close(log_fd);
+    }
+
     get_arguments(argc, argv);
     notify_ack();
     do_terminate(message_loop());
@@ -264,13 +287,13 @@ static int message_loop()
         timeout.tv_sec = SELECT_TIMEOUT;  /* On Linux timeout is modified by select */
         timeout.tv_usec = 0;
         if ((i = select(max_fd + 1, &read_fds, NULLFDS, NULLFDS, &timeout)) < 0) {
-            warn("select");
+            print_log("heart: select failed: %s", strerror(errno));
             return R_ERROR;
         }
 
         now = timestamp_seconds();
         if (now > last_received + heart_beat_timeout) {
-            warnx("heartbeat timeout -> no activity for %lu seconds",
+            print_log("heart: heartbeat timeout -> no activity for %lu seconds",
                   (unsigned long) (now - last_received));
             return R_TIMEOUT;
         }
@@ -286,7 +309,7 @@ static int message_loop()
          */
         if (FD_ISSET(STDIN_FILENO, &read_fds)) {
             if ((tlen = read_message(STDIN_FILENO, mp)) < 0) {
-                warn("error in read_message.");
+                print_log("heart: error from read_message:  %s", strerror(errno));
                 return R_ERROR;
             }
             if ((tlen > MSG_HDR_SIZE) && (tlen <= MSG_TOTAL_SIZE)) {
@@ -300,7 +323,7 @@ static int message_loop()
                 case SET_CMD:
                     /* If the user specifies "attack", turn of the hw watchdog petter to verify that the system reboots. */
                     if (mp->len > 6 && memcmp(mp->fill, "attack", 6) == 0) {
-                        warnx("Petting of the hardware watchdog is disabled. System should reboot momentarily.");
+                        print_log("heart: Petting of the hardware watchdog is disabled. System should reboot momentarily.");
 
                         /* Disable petting of the hardware watchdog */
                         watchdog_open_retries = 0;
@@ -318,7 +341,7 @@ static int message_loop()
                     break;
                 case PREPARING_CRASH:
                     /* Erlang has reached a crushdump point (is crashing for sure) */
-                    warn("Erlang is crashing .. (waiting for crash dump file)");
+                    print_log("heart: Erlang is crashing .. (waiting for crash dump file)");
                     return R_CRASHING;
                 default:
                     /* ignore all other messages */
@@ -326,7 +349,7 @@ static int message_loop()
                 }
             } else if (tlen == 0) {
                 /* Erlang has closed its end */
-                warn("Erlang has closed.");
+                print_log("heart: Erlang has closed.");
                 return R_CLOSED;
             }
             /* Junk erroneous messages */
@@ -343,7 +366,7 @@ kill_old_erlang(void)
 
     envvar = get_env(HEART_KILL_SIGNAL);
     if (envvar && strcmp(envvar, "SIGABRT") == 0) {
-        warn("kill signal SIGABRT requested");
+        print_log("heart: kill signal SIGABRT requested");
         sig = SIGABRT;
     }
 
@@ -354,8 +377,8 @@ kill_old_erlang(void)
             res = kill(heart_beat_kill_pid, sig);
         }
         if (errno != ESRCH) {
-            warn("Unable to kill old process, "
-                 "kill failed (tried multiple times).");
+            print_log("heart: Unable to kill old process, "
+                 "kill failed (tried multiple times):  %s", strerror(errno));
         }
     }
 }
@@ -373,7 +396,7 @@ do_terminate(int reason)
         if (is_env_set(ERL_CRASH_DUMP_SECONDS_ENV)) {
             const char *tmo_env = get_env(ERL_CRASH_DUMP_SECONDS_ENV);
             int tmo = atoi(tmo_env);
-            warnx("Waiting for dump - timeout set to %d seconds.", tmo);
+            print_log("heart: waiting for dump - timeout set to %d seconds.", tmo);
             wait_until_close_write_or_env_tmo(tmo);
         }
     /* fall through */
@@ -412,7 +435,7 @@ int wait_until_close_write_or_env_tmo(int tmo)
     FD_ZERO(&read_fds);
     FD_SET(STDIN_FILENO, &read_fds);
     if ((i = select(max_fd + 1, &read_fds, NULLFDS, NULLFDS, tptr)) < 0) {
-        warn("error in select.");
+        print_log("heart: select failed:  %s", strerror(errno));
         return -1;
     }
     return i;
@@ -573,8 +596,10 @@ static int read_skip(int fd, char *buf, int maxlen, int len)
 time_t timestamp_seconds()
 {
     struct timespec ts;
-    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0)
-        err(EXIT_FAILURE, "Fatal, could not get clock_monotonic value, terminating!");
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
+        print_log("heart: fatal, could not get clock_monotonic value, terminating! %s", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
 
     return ts.tv_sec;
 }
