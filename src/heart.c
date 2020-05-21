@@ -159,7 +159,7 @@ static int  wait_until_close_write_or_env_tmo(int);
 /*  static variables */
 
 static const char *watchdog_path = "/dev/watchdog0";
-static const char *custom_error_log = "/var/system/nerves_heart_error.log";
+static const char *custom_error_log = "/var/system/priv/log/nerves_heart_error.log";
 static int watchdog_open_retries = 10;
 static int watchdog_fd = -1;
 
