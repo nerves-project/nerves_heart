@@ -149,6 +149,7 @@ static void do_terminate(int);
 static int notify_ack();
 static int heart_cmd_reply(const char *);
 static int write_message(int, const struct msg *);
+static void write_to_custom_error_log(int);
 static int read_message(int, struct msg *);
 static int read_skip(int, char *, int, int);
 static int read_fill(int, char *, int);
@@ -158,6 +159,7 @@ static int  wait_until_close_write_or_env_tmo(int);
 /*  static variables */
 
 static const char *watchdog_path = "/dev/watchdog0";
+static const char *custom_error_log = "/var/system/nerves_heart_error.log";
 static int watchdog_open_retries = 10;
 static int watchdog_fd = -1;
 
@@ -383,12 +385,21 @@ kill_old_erlang(void)
     }
 }
 
+static void write_to_custom_error_log(int reason) {
+    FILE *fp;
+    fp = fopen(custom_error_log, "w+");
+    fprintf(fp, "%d\n", reason);
+    fclose(fp);
+}
+
 /*
  * do_terminate
  */
 static void
 do_terminate(int reason)
 {
+    write_to_custom_error_log(reason);
+
     switch (reason) {
     case R_SHUT_DOWN:
         break;
