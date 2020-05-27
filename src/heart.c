@@ -117,6 +117,7 @@ struct msg {
 #define  GET_CMD         (6)
 #define  HEART_CMD       (7)
 #define  PREPARING_CRASH (8)
+#define  TEST_VM_ATTACK  (9)
 
 /*  Maybe interesting to change */
 
@@ -323,13 +324,20 @@ static int message_loop()
                 case SHUT_DOWN:
                     return R_SHUT_DOWN;
                 case SET_CMD:
-                    /* If the user specifies "attack", turn of the hw watchdog petter to verify that the system reboots. */
-                    if (mp->len > 6 && memcmp(mp->fill, "attack", 6) == 0) {
+                    /* If the user specifies "attack_hw", turn off the hw watchdog petter to verify that the system reboots. */
+                    if (mp->len > 9 && memcmp(mp->fill, "attack_hw", 9) == 0) {
                         print_log("heart: Petting of the hardware watchdog is disabled. System should reboot momentarily.");
 
                         /* Disable petting of the hardware watchdog */
                         watchdog_open_retries = 0;
                         watchdog_fd = -1;
+                    }
+                    /* If the user specifies "attack_vm", simply return */
+                    if (mp->len > 9 && memcmp(mp->fill, "attack_vm", 9) == 0) {
+                        print_log("heart: Forced software watchdog reset. System should reboot momentarily.");
+
+                        notify_ack();
+                        return TEST_VM_ATTACK;
                     }
                     notify_ack();
                     break;
@@ -406,6 +414,13 @@ static void write_to_heart_crash_dump(int reason) {
     }
     else {
         print_log("heart - cannot write heart crash dump. %s is not set.", HEART_CRASH_DUMP_ENV);
+    }
+
+    if ( reason == TEST_VM_ATTACK ) {
+        /* As this is a test, put a sleep call in here to make sure all print_log statements make
+         * it to the console before rebooting
+         */
+        sleep(1);
     }
 }
 
