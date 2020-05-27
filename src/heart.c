@@ -95,6 +95,7 @@
 
 #define ERL_CRASH_DUMP_SECONDS_ENV "ERL_CRASH_DUMP_SECONDS"
 #define HEART_KILL_SIGNAL          "HEART_KILL_SIGNAL"
+#define HEART_CRASH_DUMP_ENV          "HEART_CRASH_DUMP"
 
 #define MSG_HDR_SIZE         (2)
 #define MSG_HDR_PLUS_OP_SIZE (3)
@@ -136,6 +137,7 @@ pid_t heart_beat_kill_pid = 0;
 #define  R_ERROR            (3)
 #define  R_SHUT_DOWN        (4)
 #define  R_CRASHING         (5) /* Doing a crash dump and we will wait for it */
+#define  R_TEST_VM_ATTACK   (6)
 
 
 /*  macros */
@@ -149,6 +151,7 @@ static void do_terminate(int);
 static int notify_ack();
 static int heart_cmd_reply(const char *);
 static int write_message(int, const struct msg *);
+static void write_to_heart_crash_dump(int);
 static int read_message(int, struct msg *);
 static int read_skip(int, char *, int, int);
 static int read_fill(int, char *, int);
@@ -321,13 +324,20 @@ static int message_loop()
                 case SHUT_DOWN:
                     return R_SHUT_DOWN;
                 case SET_CMD:
-                    /* If the user specifies "attack", turn of the hw watchdog petter to verify that the system reboots. */
-                    if (mp->len > 6 && memcmp(mp->fill, "attack", 6) == 0) {
+                    /* If the user specifies "attack_hw", turn off the hw watchdog petter to verify that the system reboots. */
+                    if (mp->len > 9 && memcmp(mp->fill, "attack_hw", 9) == 0) {
                         print_log("heart: Petting of the hardware watchdog is disabled. System should reboot momentarily.");
 
                         /* Disable petting of the hardware watchdog */
                         watchdog_open_retries = 0;
                         watchdog_fd = -1;
+                    }
+                    /* If the user specifies "attack_vm", simply return */
+                    if (mp->len > 9 && memcmp(mp->fill, "attack_vm", 9) == 0) {
+                        print_log("heart: Forced software watchdog reset. System should reboot momentarily.");
+
+                        notify_ack();
+                        return R_TEST_VM_ATTACK;
                     }
                     notify_ack();
                     break;
@@ -384,11 +394,44 @@ kill_old_erlang(void)
 }
 
 /*
+ * Function to write to the heart_crash_dump. Writes a single number to the file so the user can see
+ * what the reason was easily without having to parse through kmsg logs. Must have the HEART_CRASH_DUMP
+ * env set to a valid path in order for this to work.
+ */
+static void write_to_heart_crash_dump(int reason) {
+    if (is_env_set(HEART_CRASH_DUMP_ENV)) {
+        const char *heart_crash_dump = get_env(HEART_CRASH_DUMP_ENV);
+        FILE *fp;
+        fp = fopen(heart_crash_dump, "w+");
+        if (fp == NULL) {
+            print_log("heart - cannot write heart crash dump. Failed to open %s for writing.", heart_crash_dump);
+        }
+        else {
+            fprintf(fp, "%d\n", reason);
+            fclose(fp);
+            system("sync"); // make sure the filesystem is synced after writing
+        }
+    }
+    else {
+        print_log("heart - cannot write heart crash dump. %s is not set.", HEART_CRASH_DUMP_ENV);
+    }
+
+    if ( reason == R_TEST_VM_ATTACK ) {
+        /* As this is a test, put a sleep call in here to make sure all print_log statements make
+         * it to the console before rebooting
+         */
+        sleep(1);
+    }
+}
+
+/*
  * do_terminate
  */
 static void
 do_terminate(int reason)
 {
+    write_to_heart_crash_dump(reason);
+
     switch (reason) {
     case R_SHUT_DOWN:
         break;

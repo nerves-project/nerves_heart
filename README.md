@@ -60,8 +60,11 @@ kicks in, you can instruct `heart` to stop petting the hardware watchdog by
 running:
 
 ```elixir
-iex> :heart.set_cmd("attack")
+iex> :heart.set_cmd("attack_hw")
 ```
+If you'd like to verify that the Erlang VM watchdog kicks in, you can instruct `heart`
+to stop as it would if the Erlang VM became unresponsive by running:
 
-If anyone knows of an easy way of making the Erlang VM unresponsive, please let
-me know or send a PR to fill in this section.
+```elixir
+iex> :heart.set_cmd("attack_vm")
+```
