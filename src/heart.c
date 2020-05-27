@@ -117,7 +117,6 @@ struct msg {
 #define  GET_CMD         (6)
 #define  HEART_CMD       (7)
 #define  PREPARING_CRASH (8)
-#define  TEST_VM_ATTACK  (9)
 
 /*  Maybe interesting to change */
 
@@ -138,6 +137,7 @@ pid_t heart_beat_kill_pid = 0;
 #define  R_ERROR            (3)
 #define  R_SHUT_DOWN        (4)
 #define  R_CRASHING         (5) /* Doing a crash dump and we will wait for it */
+#define  R_TEST_VM_ATTACK   (6)
 
 
 /*  macros */
@@ -337,7 +337,7 @@ static int message_loop()
                         print_log("heart: Forced software watchdog reset. System should reboot momentarily.");
 
                         notify_ack();
-                        return TEST_VM_ATTACK;
+                        return R_TEST_VM_ATTACK;
                     }
                     notify_ack();
                     break;
@@ -416,7 +416,7 @@ static void write_to_heart_crash_dump(int reason) {
         print_log("heart - cannot write heart crash dump. %s is not set.", HEART_CRASH_DUMP_ENV);
     }
 
-    if ( reason == TEST_VM_ATTACK ) {
+    if ( reason == R_TEST_VM_ATTACK ) {
         /* As this is a test, put a sleep call in here to make sure all print_log statements make
          * it to the console before rebooting
          */
