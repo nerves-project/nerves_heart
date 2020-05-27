@@ -95,6 +95,7 @@
 
 #define ERL_CRASH_DUMP_SECONDS_ENV "ERL_CRASH_DUMP_SECONDS"
 #define HEART_KILL_SIGNAL          "HEART_KILL_SIGNAL"
+#define HEART_CRASH_DUMP_ENV          "HEART_CRASH_DUMP"
 
 #define MSG_HDR_SIZE         (2)
 #define MSG_HDR_PLUS_OP_SIZE (3)
@@ -149,7 +150,7 @@ static void do_terminate(int);
 static int notify_ack();
 static int heart_cmd_reply(const char *);
 static int write_message(int, const struct msg *);
-static void write_to_custom_error_log(int);
+static void write_to_heart_crash_dump(int);
 static int read_message(int, struct msg *);
 static int read_skip(int, char *, int, int);
 static int read_fill(int, char *, int);
@@ -159,7 +160,6 @@ static int  wait_until_close_write_or_env_tmo(int);
 /*  static variables */
 
 static const char *watchdog_path = "/dev/watchdog0";
-static const char *custom_error_log = "/var/system/priv/log/nerves_heart_error.log";
 static int watchdog_open_retries = 10;
 static int watchdog_fd = -1;
 
@@ -385,12 +385,28 @@ kill_old_erlang(void)
     }
 }
 
-static void write_to_custom_error_log(int reason) {
-    FILE *fp;
-    fp = fopen(custom_error_log, "w+");
-    fprintf(fp, "%d\n", reason);
-    fclose(fp);
-    system("sync"); // make sure the filesystem is synced after writing
+/*
+ * Function to write to the heart_crash_dump. Writes a single number to the file so the user can see
+ * what the reason was easily without having to parse through kmsg logs. Must have the HEART_CRASH_DUMP
+ * env set to a valid path in order for this to work.
+ */
+static void write_to_heart_crash_dump(int reason) {
+    if (is_env_set(HEART_CRASH_DUMP_ENV)) {
+        const char *heart_crash_dump = get_env(HEART_CRASH_DUMP_ENV);
+        FILE *fp;
+        fp = fopen(heart_crash_dump, "w+");
+        if (fp == NULL) {
+            print_log("heart - cannot write heart crash dump. Failed to open %s for writing.", heart_crash_dump);
+        }
+        else {
+            fprintf(fp, "%d\n", reason);
+            fclose(fp);
+            system("sync"); // make sure the filesystem is synced after writing
+        }
+    }
+    else {
+        print_log("heart - cannot write heart crash dump. %s is not set.", HEART_CRASH_DUMP_ENV);
+    }
 }
 
 /*
@@ -399,7 +415,7 @@ static void write_to_custom_error_log(int reason) {
 static void
 do_terminate(int reason)
 {
-    write_to_custom_error_log(reason);
+    write_to_heart_crash_dump(reason);
 
     switch (reason) {
     case R_SHUT_DOWN:
