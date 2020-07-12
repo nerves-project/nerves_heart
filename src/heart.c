@@ -326,8 +326,8 @@ static int message_loop()
                 case SHUT_DOWN:
                     return R_SHUT_DOWN;
                 case SET_CMD:
-                    /* If the user specifies "attack", turn off the hw watchdog petter to verify that the system reboots. */
-                    if (mp->len > 6 && memcmp(mp->fill, "attack", 6) == 0) {
+                    /* If the user specifies "disable", turn off the hw watchdog petter to verify that the system reboots. */
+                    if (mp->len > 7 && memcmp(mp->fill, "disable", 7) == 0) {
                         print_log("heart: Petting of the hardware watchdog is disabled. System should reboot momentarily.");
 
                         /* Disable petting of the hardware watchdog */

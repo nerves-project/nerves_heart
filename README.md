@@ -62,11 +62,11 @@ If you need to change the watchdog path, you can do this through an environment 
 
 It's reassuring to know that `heart` does what it's supposed to do since it
 should only rarely take action. If you'd like to verify that a hardware watchdog
-kicks in, you can instruct `heart` to stop petting the hardware watchdog by
+works, you can instruct `heart` to stop petting the hardware watchdog by
 running:
 
 ```elixir
-iex> :heart.set_cmd("attack")
+iex> :heart.set_cmd("disable")
 ```
 
 If anyone knows of an easy way of making the Erlang VM unresponsive, please let
