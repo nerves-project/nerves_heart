@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+* New features
+  * HEART_WATCHDOG_PATH environment variable for configurable watchdog device path
+
 ## v0.2.0
 
 * New features

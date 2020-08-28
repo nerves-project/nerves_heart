@@ -52,6 +52,12 @@ the interval that `heart` pets the hardware watchdog. The default for Erlang is
 The heart beat timeout has to be greater than 10 seconds per the Erlang
 documentation.
 
+If you need to change the watchdog path, you can do this through an environment variable.
+
+```erlang
+-heart -env HEART_WATCHDOG_PATH /dev/watchdog1
+```
+
 ## Testing
 
 It's reassuring to know that `heart` does what it's supposed to do since it

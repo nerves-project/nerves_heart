@@ -95,6 +95,7 @@
 
 #define ERL_CRASH_DUMP_SECONDS_ENV "ERL_CRASH_DUMP_SECONDS"
 #define HEART_KILL_SIGNAL          "HEART_KILL_SIGNAL"
+#define HEART_WATCHDOG_PATH        "HEART_WATCHDOG_PATH"
 
 #define MSG_HDR_SIZE         (2)
 #define MSG_HDR_PLUS_OP_SIZE (3)
@@ -157,7 +158,7 @@ static int  wait_until_close_write_or_env_tmo(int);
 
 /*  static variables */
 
-static const char *watchdog_path = "/dev/watchdog0";
+static char * const watchdog_path_default = "/dev/watchdog0";
 static int watchdog_open_retries = 10;
 static int watchdog_fd = -1;
 
@@ -175,6 +176,16 @@ static void print_log(const char *format, ...)
     va_end(ap);
 }
 
+static int is_env_set(char *key)
+{
+    return getenv(key) != NULL;
+}
+
+static char *get_env(char *key)
+{
+    return getenv(key);
+}
+
 static void pet_watchdog()
 {
     /* The watchdog device sometimes takes a bit to appear, so give it a few tries. */
@@ -182,6 +193,10 @@ static void pet_watchdog()
         if (watchdog_open_retries <= 0)
             return;
 
+        char *watchdog_path = get_env(HEART_WATCHDOG_PATH);
+        if (watchdog_path == NULL) {
+            watchdog_path = watchdog_path_default;
+        }
         watchdog_fd = open(watchdog_path, O_WRONLY);
         if (watchdog_fd > 0) {
             print_log("heart: kernel watchdog activated (interval %ds)", SELECT_TIMEOUT);
@@ -195,16 +210,6 @@ static void pet_watchdog()
 
     if (write(watchdog_fd, "\0", 1) < 0)
         print_log("heart: error petting watchdog: %s", strerror(errno));
-}
-
-static int is_env_set(char *key)
-{
-    return getenv(key) != NULL;
-}
-
-static char *get_env(char *key)
-{
-    return getenv(key);
 }
 
 /*
