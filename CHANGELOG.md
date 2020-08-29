@@ -1,8 +1,11 @@
 # Changelog
 
-## Unreleased
+## v0.3.0
+
 * New features
-  * HEART_WATCHDOG_PATH environment variable for configurable watchdog device path
+  * `HEART_WATCHDOG_PATH` environment variable for configurable watchdog device
+    path
+  * Test command for disabling the watch dog for test purposes is now `disable`
 
 ## v0.2.0
 
