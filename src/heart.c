@@ -1,7 +1,7 @@
 /*
  * %CopyrightBegin%
  *
- * Copyright Ericsson AB 1996-2018. All Rights Reserved.
+ * Copyright Ericsson AB 1996-2020. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -80,9 +80,9 @@
 #include <stdarg.h>
 
 #include <string.h>
+#include <time.h>
 #include <errno.h>
 
-#include <time.h>
 #include <signal.h>
 #include <unistd.h>
 #include <linux/reboot.h>
@@ -105,6 +105,7 @@
 #define ERL_CRASH_DUMP_SECONDS_ENV "ERL_CRASH_DUMP_SECONDS"
 #define HEART_KILL_SIGNAL          "HEART_KILL_SIGNAL"
 #define HEART_WATCHDOG_PATH        "HEART_WATCHDOG_PATH"
+#define HEART_NO_KILL              "HEART_NO_KILL"
 
 #define MSG_HDR_SIZE         (2)
 #define MSG_HDR_PLUS_OP_SIZE (3)
@@ -112,9 +113,9 @@
 #define MSG_TOTAL_SIZE       (2050)
 
 struct msg {
-    unsigned short len;
-    unsigned char op;
-    unsigned char fill[MSG_BODY_SIZE]; /* one too many */
+  unsigned short len;
+  unsigned char op;
+  unsigned char fill[MSG_BODY_SIZE]; /* one too many */
 };
 
 /* operations */
@@ -127,10 +128,12 @@ struct msg {
 #define  HEART_CMD       (7)
 #define  PREPARING_CRASH (8)
 
+
 /*  Maybe interesting to change */
 
 /* Times in seconds */
-#define  SELECT_TIMEOUT 5  /* Every 5 seconds we reset the hw watchdog timer */
+#define  SELECT_TIMEOUT               5  /* Every 5 seconds we reset the
+					    watchdog timer */
 
 /* heart_beat_timeout is the maximum gap in seconds between two
    consecutive heart beat messages from Erlang. */
@@ -227,8 +230,8 @@ static void pet_watchdog()
 static void get_arguments(int argc, char **argv)
 {
     int i = 1;
-    int h;
-    unsigned long p;
+    int h = -1;
+    unsigned long p = 0;
 
     while (i < argc) {
         switch (argv[i][0]) {
@@ -374,19 +377,34 @@ static int message_loop()
 }
 
 static void
-kill_old_erlang(void)
+kill_old_erlang(int reason)
 {
     int i, res;
     int sig = SIGKILL;
     char *envvar = NULL;
 
-    envvar = get_env(HEART_KILL_SIGNAL);
-    if (envvar && strcmp(envvar, "SIGABRT") == 0) {
-        print_log("heart: kill signal SIGABRT requested");
-        sig = SIGABRT;
-    }
+    envvar = get_env(HEART_NO_KILL);
+    if (envvar && strcmp(envvar, "TRUE") == 0)
+      return;
 
     if (heart_beat_kill_pid != 0) {
+        if (reason == R_CLOSED) {
+            print_log("heart: Wait 5 seconds for Erlang to terminate nicely");
+            for (i=0; i < 5; ++i) {
+               res = kill(heart_beat_kill_pid, 0); /* check if alive */
+               if (res < 0 && errno == ESRCH)
+                  return;
+              sleep(1);
+            }
+           print_log("heart: Erlang still alive, kill it");
+        }
+
+        envvar = get_env(HEART_KILL_SIGNAL);
+        if (envvar && strcmp(envvar, "SIGABRT") == 0) {
+            print_log("heart: kill signal SIGABRT requested");
+            sig = SIGABRT;
+        }
+
         res = kill(heart_beat_kill_pid, sig);
         for (i = 0; i < 5 && res == 0; ++i) {
             sleep(1);
@@ -420,7 +438,7 @@ do_terminate(int reason)
     case R_CLOSED:
     case R_ERROR:
     default:
-        kill_old_erlang();
+        kill_old_erlang(reason);
         reboot(LINUX_REBOOT_CMD_RESTART);
         break;
     } /* switch(reason) */
