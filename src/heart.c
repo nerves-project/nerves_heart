@@ -93,6 +93,15 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#define PROGRAM_NAME "nerves_heart"
+#ifndef PROGRAM_VERSION
+#error PROGRAM_VERSION is undefined
+#endif
+
+#define xstr(s) str(s)
+#define str(s) #s
+#define PROGRAM_VERSION_STR xstr(PROGRAM_VERSION)
+
 #define ERL_CRASH_DUMP_SECONDS_ENV "ERL_CRASH_DUMP_SECONDS"
 #define HEART_KILL_SIGNAL          "HEART_KILL_SIGNAL"
 #define HEART_WATCHDOG_PATH        "HEART_WATCHDOG_PATH"
@@ -262,6 +271,8 @@ int main(int argc, char **argv)
         dup2(log_fd, STDERR_FILENO);
         close(log_fd);
     }
+
+    print_log("heart: " PROGRAM_NAME " v" PROGRAM_VERSION_STR " started.");
 
     get_arguments(argc, argv);
     notify_ack();
