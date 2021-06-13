@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.3.1
+
+* New features
+  * Identify `nerves_heart` version on start to make it easier to debug watchdog
+    issues due to running Erlang heart instead of `nerves_heart`
+  * Sync with OTP-24 heart changes. All changes were minor and nothing that
+    Nerves users should notice.
+
 ## v0.3.0
 
 * New features
