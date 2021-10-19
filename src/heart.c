@@ -102,6 +102,12 @@
 #define str(s) #s
 #define PROGRAM_VERSION_STR xstr(PROGRAM_VERSION)
 
+#ifdef __clang_analyzer__
+   /* CodeChecker does not seem to understand inline asm in FD_ZERO */
+#  undef FD_ZERO
+#  define FD_ZERO(FD_SET_PTR) memset(FD_SET_PTR, 0, sizeof(fd_set))
+#endif
+
 #define ERL_CRASH_DUMP_SECONDS_ENV "ERL_CRASH_DUMP_SECONDS"
 #define HEART_KILL_SIGNAL          "HEART_KILL_SIGNAL"
 #define HEART_WATCHDOG_PATH        "HEART_WATCHDOG_PATH"
