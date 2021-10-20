@@ -88,6 +88,8 @@
 #include <linux/reboot.h>
 #include <sys/reboot.h>
 #include <arpa/inet.h>
+#include <linux/watchdog.h>
+#include <sys/ioctl.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -166,7 +168,7 @@ pid_t heart_beat_kill_pid = 0;
 static int message_loop();
 static void do_terminate(int);
 static int notify_ack();
-static int heart_cmd_reply(const char *);
+static int heart_cmd_info_reply();
 static int write_message(int, const struct msg *);
 static int read_message(int, struct msg *);
 static int read_skip(int, char *, int, int);
@@ -361,8 +363,8 @@ static int message_loop()
                     notify_ack();
                     break;
                 case GET_CMD:
-                    /* Not supported: send back empty string */
-                    heart_cmd_reply("");
+                    /* Return information about heart */
+                    heart_cmd_info_reply();
                     break;
                 case PREPARING_CRASH:
                     /* Erlang has reached a crushdump point (is crashing for sure) */
@@ -498,30 +500,6 @@ static int notify_ack()
 
 
 /*
- * send back current command
- *
- * Sends an HEART_CMD.
- */
-static int heart_cmd_reply(const char *s)
-{
-    struct msg m;
-    size_t len = strlen(s);
-
-    /* if s >= MSG_BODY_SIZE, return a write
-     * failure immediately.
-     */
-    if (len >= sizeof(m.fill))
-        return -1;
-
-    m.op = HEART_CMD;
-    m.len = htons(len + 1);   /* Include Op */
-    strcpy((char *)m.fill, s);
-
-    return write_message(STDOUT_FILENO, &m);
-}
-
-
-/*
  *  write_message
  *
  *  Writes a message to a blocking file descriptor. Returns the total
@@ -639,4 +617,48 @@ time_t timestamp_seconds()
     }
 
     return ts.tv_sec;
+}
+
+static int heart_cmd_info_reply()
+{
+    struct msg m;
+    struct watchdog_info info;
+    char *p = (char *) m.fill;
+    int ret;
+    int flags;
+
+    /* The reply format is:
+     *  <KEY>=<VALUE> NEWLINE
+     *  ...
+     */
+    p += sprintf(p, "program_name=" PROGRAM_NAME "\nprogram_version=" PROGRAM_VERSION_STR "\n");
+
+    ret = ioctl(watchdog_fd, WDIOC_GETSUPPORT, &info);
+    if (ret == 0) {
+        p += sprintf(p, "identity=%s\n", info.identity);
+        p += sprintf(p, "firmware_version=%u\n", info.firmware_version);
+        p += sprintf(p, "options=0x%08x\n", info.options);
+    }
+    ret = ioctl(watchdog_fd, WDIOC_GETTIMELEFT, &flags);
+    if (ret == 0)
+        p += sprintf(p, "time_left=%u\n", flags);
+
+    ret = ioctl(watchdog_fd, WDIOC_GETPRETIMEOUT, &flags);
+    if (ret == 0)
+        p += sprintf(p, "pre_timeout=%u\n", flags);
+
+    ret = ioctl(watchdog_fd, WDIOC_GETTIMEOUT, &flags);
+    if (ret == 0)
+        p += sprintf(p, "timeout=%u\n", flags);
+
+    flags = 0;
+    ret = ioctl(watchdog_fd, WDIOC_GETBOOTSTATUS, &flags);
+    if (ret == 0)
+        p += sprintf(p, "last_boot=%s\n", (flags != 0 ? "watchdog" : "power_on"));
+
+    size_t len = p - (char *) m.fill;
+    m.op = HEART_CMD;
+    m.len = htons(len + 1);   /* Include Op */
+
+    return write_message(STDOUT_FILENO, &m);
 }

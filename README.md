@@ -58,6 +58,25 @@ If you need to change the watchdog path, you can do this through an environment 
 -heart -env HEART_WATCHDOG_PATH /dev/watchdog1
 ```
 
+## Runtime diagnostic information
+
+Both `nerves_heart` and the Linux watchdog subsystem can return useful
+information via `:heart.get_cmd/0`. According to the Erlang/OTP documentation,
+this function really should return the temporary reboot command, but it's
+commented as unsupported in the Erlang version of `heart`. Given that there
+isn't a better function call for returning this information, this one is used.
+
+Here's an example run:
+
+```elixir
+iex> :heart.get_cmd
+{:ok,
+ 'program_name=nerves_heart\nprogram_version=0.4.0\nidentity=OMAP Watchdog\nfirmware_version=0\noptions=0x00008180\ntime_left=118\npre_timeout=0\ntimeout=120\nlast_boot=power_on\n'}
+```
+
+The format is "key=value\n". The keys are either from `nerves_heart` or from
+Linux watchdog `ioctl` functions.
+
 ## Testing
 
 It's reassuring to know that `heart` does what it's supposed to do since it
