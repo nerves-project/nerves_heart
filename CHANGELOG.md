@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.0.0
+
+* New features
+  * Add diagnostic information to `:heart.get_cmd/0`
+
 ## v0.3.1
 
 * New features
