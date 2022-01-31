@@ -1,7 +1,7 @@
 /*
  * %CopyrightBegin%
  *
- * Copyright Ericsson AB 1996-2016. All Rights Reserved.
+ * Copyright Ericsson AB 1996-2020. All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -80,22 +80,41 @@
 #include <stdarg.h>
 
 #include <string.h>
+#include <time.h>
 #include <errno.h>
 
-#include <time.h>
 #include <signal.h>
 #include <unistd.h>
 #include <linux/reboot.h>
 #include <sys/reboot.h>
 #include <arpa/inet.h>
+#include <linux/watchdog.h>
+#include <sys/ioctl.h>
 
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#define PROGRAM_NAME "nerves_heart"
+#ifndef PROGRAM_VERSION
+#error PROGRAM_VERSION is undefined
+#endif
+
+#define xstr(s) str(s)
+#define str(s) #s
+#define PROGRAM_VERSION_STR xstr(PROGRAM_VERSION)
+
+#ifdef __clang_analyzer__
+   /* CodeChecker does not seem to understand inline asm in FD_ZERO */
+#  undef FD_ZERO
+#  define FD_ZERO(FD_SET_PTR) memset(FD_SET_PTR, 0, sizeof(fd_set))
+#endif
+
 #define ERL_CRASH_DUMP_SECONDS_ENV "ERL_CRASH_DUMP_SECONDS"
 #define HEART_KILL_SIGNAL          "HEART_KILL_SIGNAL"
 #define HEART_CRASH_DUMP_ENV          "HEART_CRASH_DUMP"
+#define HEART_WATCHDOG_PATH        "HEART_WATCHDOG_PATH"
+#define HEART_NO_KILL              "HEART_NO_KILL"
 
 #define MSG_HDR_SIZE         (2)
 #define MSG_HDR_PLUS_OP_SIZE (3)
@@ -103,9 +122,9 @@
 #define MSG_TOTAL_SIZE       (2050)
 
 struct msg {
-    unsigned short len;
-    unsigned char op;
-    unsigned char fill[MSG_BODY_SIZE]; /* one too many */
+  unsigned short len;
+  unsigned char op;
+  unsigned char fill[MSG_BODY_SIZE]; /* one too many */
 };
 
 /* operations */
@@ -118,10 +137,12 @@ struct msg {
 #define  HEART_CMD       (7)
 #define  PREPARING_CRASH (8)
 
+
 /*  Maybe interesting to change */
 
 /* Times in seconds */
-#define  SELECT_TIMEOUT 5  /* Every 5 seconds we reset the hw watchdog timer */
+#define  SELECT_TIMEOUT               5  /* Every 5 seconds we reset the
+					    watchdog timer */
 
 /* heart_beat_timeout is the maximum gap in seconds between two
    consecutive heart beat messages from Erlang. */
@@ -149,7 +170,7 @@ pid_t heart_beat_kill_pid = 0;
 static int message_loop();
 static void do_terminate(int);
 static int notify_ack();
-static int heart_cmd_reply(const char *);
+static int heart_cmd_info_reply();
 static int write_message(int, const struct msg *);
 static void write_to_heart_crash_dump(int);
 static int read_message(int, struct msg *);
@@ -160,7 +181,7 @@ static int  wait_until_close_write_or_env_tmo(int);
 
 /*  static variables */
 
-static const char *watchdog_path = "/dev/watchdog0";
+static char * const watchdog_path_default = "/dev/watchdog0";
 static int watchdog_open_retries = 10;
 static int watchdog_fd = -1;
 
@@ -178,6 +199,16 @@ static void print_log(const char *format, ...)
     va_end(ap);
 }
 
+static int is_env_set(char *key)
+{
+    return getenv(key) != NULL;
+}
+
+static char *get_env(char *key)
+{
+    return getenv(key);
+}
+
 static void pet_watchdog()
 {
     /* The watchdog device sometimes takes a bit to appear, so give it a few tries. */
@@ -185,6 +216,10 @@ static void pet_watchdog()
         if (watchdog_open_retries <= 0)
             return;
 
+        char *watchdog_path = get_env(HEART_WATCHDOG_PATH);
+        if (watchdog_path == NULL) {
+            watchdog_path = watchdog_path_default;
+        }
         watchdog_fd = open(watchdog_path, O_WRONLY);
         if (watchdog_fd > 0) {
             print_log("heart: kernel watchdog activated (interval %ds)", SELECT_TIMEOUT);
@@ -200,24 +235,14 @@ static void pet_watchdog()
         print_log("heart: error petting watchdog: %s", strerror(errno));
 }
 
-static int is_env_set(char *key)
-{
-    return getenv(key) != NULL;
-}
-
-static char *get_env(char *key)
-{
-    return getenv(key);
-}
-
 /*
  *  main
  */
 static void get_arguments(int argc, char **argv)
 {
     int i = 1;
-    int h;
-    unsigned long p;
+    int h = -1;
+    unsigned long p = 0;
 
     while (i < argc) {
         switch (argv[i][0]) {
@@ -260,6 +285,8 @@ int main(int argc, char **argv)
         dup2(log_fd, STDERR_FILENO);
         close(log_fd);
     }
+
+    print_log("heart: " PROGRAM_NAME " v" PROGRAM_VERSION_STR " started.");
 
     get_arguments(argc, argv);
     notify_ack();
@@ -324,8 +351,8 @@ static int message_loop()
                 case SHUT_DOWN:
                     return R_SHUT_DOWN;
                 case SET_CMD:
-                    /* If the user specifies "attack_hw", turn off the hw watchdog petter to verify that the system reboots. */
-                    if (mp->len > 9 && memcmp(mp->fill, "attack_hw", 9) == 0) {
+                    /* If the user specifies "disable", turn off the hw watchdog petter to verify that the system reboots. */
+                    if (mp->len > 7 && memcmp(mp->fill, "disable", 7) == 0) {
                         print_log("heart: Petting of the hardware watchdog is disabled. System should reboot momentarily.");
 
                         /* Disable petting of the hardware watchdog */
@@ -346,8 +373,8 @@ static int message_loop()
                     notify_ack();
                     break;
                 case GET_CMD:
-                    /* Not supported: send back empty string */
-                    heart_cmd_reply("");
+                    /* Return information about heart */
+                    heart_cmd_info_reply();
                     break;
                 case PREPARING_CRASH:
                     /* Erlang has reached a crushdump point (is crashing for sure) */
@@ -368,19 +395,34 @@ static int message_loop()
 }
 
 static void
-kill_old_erlang(void)
+kill_old_erlang(int reason)
 {
     int i, res;
     int sig = SIGKILL;
     char *envvar = NULL;
 
-    envvar = get_env(HEART_KILL_SIGNAL);
-    if (envvar && strcmp(envvar, "SIGABRT") == 0) {
-        print_log("heart: kill signal SIGABRT requested");
-        sig = SIGABRT;
-    }
+    envvar = get_env(HEART_NO_KILL);
+    if (envvar && strcmp(envvar, "TRUE") == 0)
+      return;
 
     if (heart_beat_kill_pid != 0) {
+        if (reason == R_CLOSED) {
+            print_log("heart: Wait 5 seconds for Erlang to terminate nicely");
+            for (i=0; i < 5; ++i) {
+               res = kill(heart_beat_kill_pid, 0); /* check if alive */
+               if (res < 0 && errno == ESRCH)
+                  return;
+              sleep(1);
+            }
+           print_log("heart: Erlang still alive, kill it");
+        }
+
+        envvar = get_env(HEART_KILL_SIGNAL);
+        if (envvar && strcmp(envvar, "SIGABRT") == 0) {
+            print_log("heart: kill signal SIGABRT requested");
+            sig = SIGABRT;
+        }
+
         res = kill(heart_beat_kill_pid, sig);
         for (i = 0; i < 5 && res == 0; ++i) {
             sleep(1);
@@ -447,7 +489,7 @@ do_terminate(int reason)
     case R_CLOSED:
     case R_ERROR:
     default:
-        kill_old_erlang();
+        kill_old_erlang(reason);
         reboot(LINUX_REBOOT_CMD_RESTART);
         break;
     } /* switch(reason) */
@@ -496,30 +538,6 @@ static int notify_ack()
 
     m.op = HEART_ACK;
     m.len = htons(1);
-    return write_message(STDOUT_FILENO, &m);
-}
-
-
-/*
- * send back current command
- *
- * Sends an HEART_CMD.
- */
-static int heart_cmd_reply(const char *s)
-{
-    struct msg m;
-    size_t len = strlen(s);
-
-    /* if s >= MSG_BODY_SIZE, return a write
-     * failure immediately.
-     */
-    if (len >= sizeof(m.fill))
-        return -1;
-
-    m.op = HEART_CMD;
-    m.len = htons(len + 1);   /* Include Op */
-    strcpy((char *)m.fill, s);
-
     return write_message(STDOUT_FILENO, &m);
 }
 
@@ -642,4 +660,48 @@ time_t timestamp_seconds()
     }
 
     return ts.tv_sec;
+}
+
+static int heart_cmd_info_reply()
+{
+    struct msg m;
+    struct watchdog_info info;
+    char *p = (char *) m.fill;
+    int ret;
+    int flags;
+
+    /* The reply format is:
+     *  <KEY>=<VALUE> NEWLINE
+     *  ...
+     */
+    p += sprintf(p, "program_name=" PROGRAM_NAME "\nprogram_version=" PROGRAM_VERSION_STR "\n");
+
+    ret = ioctl(watchdog_fd, WDIOC_GETSUPPORT, &info);
+    if (ret == 0) {
+        p += sprintf(p, "identity=%s\n", info.identity);
+        p += sprintf(p, "firmware_version=%u\n", info.firmware_version);
+        p += sprintf(p, "options=0x%08x\n", info.options);
+    }
+    ret = ioctl(watchdog_fd, WDIOC_GETTIMELEFT, &flags);
+    if (ret == 0)
+        p += sprintf(p, "time_left=%u\n", flags);
+
+    ret = ioctl(watchdog_fd, WDIOC_GETPRETIMEOUT, &flags);
+    if (ret == 0)
+        p += sprintf(p, "pre_timeout=%u\n", flags);
+
+    ret = ioctl(watchdog_fd, WDIOC_GETTIMEOUT, &flags);
+    if (ret == 0)
+        p += sprintf(p, "timeout=%u\n", flags);
+
+    flags = 0;
+    ret = ioctl(watchdog_fd, WDIOC_GETBOOTSTATUS, &flags);
+    if (ret == 0)
+        p += sprintf(p, "last_boot=%s\n", (flags != 0 ? "watchdog" : "power_on"));
+
+    size_t len = p - (char *) m.fill;
+    m.op = HEART_CMD;
+    m.len = htons(len + 1);   /* Include Op */
+
+    return write_message(STDOUT_FILENO, &m);
 }
