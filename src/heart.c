@@ -631,7 +631,7 @@ static int heart_cmd_info_reply()
      *  <KEY>=<VALUE> NEWLINE
      *  ...
      */
-    p += sprintf(p, "program_name=" PROGRAM_NAME "\nprogram_version=" PROGRAM_VERSION_STR "\n");
+    p += sprintf(p, "program_name=" PROGRAM_NAME "\nprogram_version=" PROGRAM_VERSION_STR "\nheartbeat_timeout=%d\n", heart_beat_timeout);
 
     ret = ioctl(watchdog_fd, WDIOC_GETSUPPORT, &info);
     if (ret == 0) {
