@@ -637,24 +637,44 @@ static int heart_cmd_info_reply()
     if (ret == 0) {
         p += sprintf(p, "identity=%s\n", info.identity);
         p += sprintf(p, "firmware_version=%u\n", info.firmware_version);
-        p += sprintf(p, "options=0x%08x\n", info.options);
+        p += sprintf(p, "options=");
+        if (info.options & WDIOF_OVERHEAT) p += sprintf(p, "overheat,");
+        if (info.options & WDIOF_FANFAULT) p += sprintf(p, "fanfault,");
+        if (info.options & WDIOF_EXTERN1) p += sprintf(p, "extern1,");
+        if (info.options & WDIOF_EXTERN2) p += sprintf(p, "extern2,");
+        if (info.options & WDIOF_POWERUNDER) p += sprintf(p, "powerunder,");
+        if (info.options & WDIOF_CARDRESET) p += sprintf(p, "cardreset,");
+        if (info.options & WDIOF_POWEROVER) p += sprintf(p, "powerover,");
+        if (info.options & WDIOF_SETTIMEOUT) p += sprintf(p, "settimeout,");
+        if (info.options & WDIOF_MAGICCLOSE) p += sprintf(p, "magicclose,");
+        if (info.options & WDIOF_PRETIMEOUT) p += sprintf(p, "pretimeout,");
+        if (info.options & WDIOF_ALARMONLY) p += sprintf(p, "alarmonly,");
+        if (info.options & WDIOF_KEEPALIVEPING) p += sprintf(p, "keepaliveping,");
+        p += sprintf(p, "\n");
+    } else {
+        p += sprintf(p, "identity=none\nfirmware_version=0\noptions=\n");
     }
+
     ret = ioctl(watchdog_fd, WDIOC_GETTIMELEFT, &flags);
-    if (ret == 0)
-        p += sprintf(p, "time_left=%u\n", flags);
+    if (ret != 0)
+        flags = 0;
+    p += sprintf(p, "time_left=%u\n", flags);
 
     ret = ioctl(watchdog_fd, WDIOC_GETPRETIMEOUT, &flags);
-    if (ret == 0)
-        p += sprintf(p, "pre_timeout=%u\n", flags);
+    if (ret != 0)
+        flags = 0;
+    p += sprintf(p, "pre_timeout=%u\n", flags);
 
     ret = ioctl(watchdog_fd, WDIOC_GETTIMEOUT, &flags);
-    if (ret == 0)
-        p += sprintf(p, "timeout=%u\n", flags);
+    if (ret != 0)
+        flags = 0;
+    p += sprintf(p, "timeout=%u\n", flags);
 
     flags = 0;
     ret = ioctl(watchdog_fd, WDIOC_GETBOOTSTATUS, &flags);
-    if (ret == 0)
-        p += sprintf(p, "last_boot=%s\n", (flags != 0 ? "watchdog" : "power_on"));
+    if (ret != 0)
+        flags = 0;
+    p += sprintf(p, "last_boot=%s\n", (flags != 0 ? "watchdog" : "power_on"));
 
     size_t len = p - (char *) m.fill;
     m.op = HEART_CMD;
