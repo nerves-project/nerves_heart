@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.1.0
+
+* Changes
+  * Several `:heart.get_cmd/0` status info updates:
+    * Decode hardware watchdog options (no more hex number)
+    * Add the configured heart timeout
+    * If no hardware watchdog, fill out fields with default values
+
 ## v1.0.0
 
 * New features

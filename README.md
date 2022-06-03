@@ -71,7 +71,7 @@ Here's an example run:
 ```elixir
 iex> :heart.get_cmd
 {:ok,
- 'program_name=nerves_heart\nprogram_version=0.4.0\nidentity=OMAP Watchdog\nfirmware_version=0\noptions=0x00008180\ntime_left=118\npre_timeout=0\ntimeout=120\nlast_boot=power_on\n'}
+ 'program_name=nerves_heart\nprogram_version=1.1.0\nheartbeat_timeout=30\nidentity=OMAP Watchdog\nfirmware_version=0\noptions=settimeout,magicclose,keepaliveping,\ntime_left=117\npre_timeout=0\ntimeout=120\nlast_boot=power_on\n'}
 ```
 
 The format is "key=value\n". The keys are either from `nerves_heart` or from
