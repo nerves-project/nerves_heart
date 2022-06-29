@@ -451,7 +451,7 @@ static void write_to_heart_crash_dump(int reason) {
         else {
             fprintf(fp, "%d\n", reason);
             fclose(fp);
-            system("sync"); // make sure the filesystem is synced after writing
+            sync(); /* make sure the filesystem is synced after writing */
         }
     }
     else {
