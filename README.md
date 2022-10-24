@@ -77,6 +77,39 @@ iex> :heart.get_cmd
 The format is "key=value\n". The keys are either from `nerves_heart` or from
 Linux watchdog `ioctl` functions.
 
+If you're using Nerves, `Nerves.Runtime.Heart` has a friendlier interface:
+
+```elixir
+iex> Nerves.Runtime.Heart.status!
+%{
+  firmware_version: 0,
+  heartbeat_timeout: 30,
+  identity: "OMAP Watchdog",
+  last_boot: :power_on,
+  options: [:settimeout, :magicclose, :keepaliveping],
+  pre_timeout: 0,
+  program_name: "nerves_heart",
+  program_version: %Version{major: 1, minor: 1, patch: 0},
+  time_left: 116,
+  timeout: 120
+}
+```
+
+The following table describes keys and their values:
+
+| Key | Description or value  |
+| --- | --------------------- |
+| `:program_name` | `"nerves_heart"` |
+| `:program_version` | Nerves heart's version number  |
+| `:identity` | The hardware watchdog that's being used  |
+| `:firmware_version` | An integer that represents the hardware watchdog's firmware revision  |
+| `:options` | Hardware watchdog options as reported by Linux  |
+| `:time_left` | How many seconds are left before the hardware watchdog triggers a reboot  |
+| `:pre_timeout` | How many seconds before the watchdog expires that Linux will receive a pre-timeout notification  |
+| `:timeout` | The hardware watchdog timeout. This is only changeable in the Linux configuration |
+| `:last_boot` | What caused the most recent boot. Whether this is reliable depends on the watchdog. |
+| `:heartbeat_timeout` | Erlang's heartbeat timeout setting. Note that the hardware watchdog timeout supersedes this since it reboots. |
+
 ## Testing
 
 It's reassuring to know that `heart` does what it's supposed to do since it
