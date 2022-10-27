@@ -188,8 +188,9 @@ static void print_log(const char *format, ...)
     va_start(ap, format);
 
     char buffer[256];
-    int len = vsnprintf(buffer, sizeof(buffer), format, ap);
+    int len = vsnprintf(buffer, sizeof(buffer) - 1, format, ap);
     if (len > 0) {
+        buffer[len++] = '\n';
         int ignore = write(STDERR_FILENO, buffer, len);
         (void) ignore;
     }

@@ -12,7 +12,12 @@ all: heart
 heart: src/heart.c $(EXTRA_SRC)
 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^
 
+test: check
+check: heart
+	$(MAKE) -C tests
+
 clean:
 	$(RM) heart
+	$(MAKE) -C tests clean
 
-.PHONY: all clean
+.PHONY: all test check clean
