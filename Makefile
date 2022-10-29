@@ -1,16 +1,18 @@
 VERSION=1.1.0
 
-ADDITIONAL_CFLAGS=-Wall -Wextra -DPROGRAM_VERSION=$(VERSION)
+EXTRA_CFLAGS=-Wall -Wextra -DPROGRAM_VERSION=$(VERSION)
+
+ifeq ($(shell uname),Darwin)
+EXTRA_CFLAGS+=-Isrc/compat
+EXTRA_SRC=src/compat/compat.c
+endif
 
 all: heart
 
-heart: src/heart.c
-	$(CC) $(CFLAGS) $(ADDITIONAL_CFLAGS) -o $@ $^
-
-install: heart
-	cp $^ $(PREFIX)/lib/erlang/erts-9.3/bin/heart
+heart: src/heart.c $(EXTRA_SRC)
+	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^
 
 clean:
-	-rm -f heart
+	$(RM) heart
 
 .PHONY: all clean
