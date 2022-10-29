@@ -157,8 +157,6 @@ pid_t heart_beat_kill_pid = 0;
 #define  R_ERROR            (3)
 #define  R_SHUT_DOWN        (4)
 #define  R_CRASHING         (5) /* Doing a crash dump and we will wait for it */
-#define  R_TEST_VM_ATTACK   (6)
-
 
 /*  macros */
 
@@ -358,21 +356,21 @@ static int message_loop()
                 case SHUT_DOWN:
                     return R_SHUT_DOWN;
                 case SET_CMD:
-                    /* If the user specifies "disable" or "attack_hw", turn off the hw watchdog petter to verify that the system reboots. */
+                    /* If the user specifies "disable" or "disable_hw", turn off the hw watchdog petter to verify that the system reboots. */
                     if ((mp->len > 7 && memcmp(mp->fill, "disable", 7) == 0) ||
-                        (mp->len > 9 && memcmp(mp->fill, "attack_hw", 9) == 0)) {
+                        (mp->len > 10 && memcmp(mp->fill, "disable_hw", 10) == 0)) {
                         print_log("heart: Petting of the hardware watchdog is disabled. System should reboot momentarily.");
 
                         /* Disable petting of the hardware watchdog */
                         watchdog_open_retries = 0;
                         watchdog_fd = -1;
                     }
-                    /* If the user specifies "attack_vm", simply return */
-                    if (mp->len > 9 && memcmp(mp->fill, "attack_vm", 9) == 0) {
-                        print_log("heart: Forced software watchdog reset. System should reboot momentarily.");
+                    /* If the user specifies "disable_vm", return like there was a timeout */
+                    if (mp->len > 10 && memcmp(mp->fill, "disable_vm", 10) == 0) {
+                        print_log("heart: Forced heart process timeout. System should reboot momentarily.");
 
                         notify_ack();
-                        return R_TEST_VM_ATTACK;
+                        return R_TIMEOUT;
                     }
                     notify_ack();
                     break;
