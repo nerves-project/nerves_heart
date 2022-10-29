@@ -82,18 +82,29 @@ defmodule HeartTestTest do
     assert Heart.next_event(heart) == {:exit, 0}
   end
 
-  test "sending disable stops petting the hardware watchdog", context do
+  test "sending disable_hw stops petting the hardware watchdog", context do
     heart = start_supervised!({Heart, tmp_dir: context.tmp_dir})
     assert Heart.next_event(heart) == {:heart, :heart_ack}
     assert Heart.next_event(heart) == {:event, "open(/dev/watchdog0) succeeded"}
 
-    {:ok, :heart_ack} = Heart.set_cmd(heart, "disable")
+    {:ok, :heart_ack} = Heart.set_cmd(heart, "disable_hw")
 
     Process.sleep(10000)
 
     assert Heart.next_event(heart, 1000) == :timeout
 
     Heart.shutdown(heart)
+    assert Heart.next_event(heart) == {:exit, 0}
+  end
+
+  test "sending disable_vm causes a heart timeout exit", context do
+    heart = start_supervised!({Heart, tmp_dir: context.tmp_dir})
+    assert Heart.next_event(heart) == {:heart, :heart_ack}
+    assert Heart.next_event(heart) == {:event, "open(/dev/watchdog0) succeeded"}
+
+    {:ok, :heart_ack} = Heart.set_cmd(heart, "disable_vm")
+
+    assert Heart.next_event(heart) == {:event, "reboot(0x01234567)"}
     assert Heart.next_event(heart) == {:exit, 0}
   end
 
