@@ -464,6 +464,7 @@ do_terminate(int reason)
     case R_CLOSED:
     case R_ERROR:
     default:
+        sync();
         kill_old_erlang(reason);
         reboot(LINUX_REBOOT_CMD_RESTART);
         break;

@@ -83,6 +83,11 @@ __attribute__((constructor)) void fixture_init()
     unsetenv("DYLD_INSERT_LIBRARIES");
 }
 
+REPLACE(void, sync, ())
+{
+    flog("sync()");
+}
+
 REPLACE(int, reboot, (int cmd))
 {
     flog("reboot(0x%08x)", cmd);

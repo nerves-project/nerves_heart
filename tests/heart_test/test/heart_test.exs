@@ -54,6 +54,7 @@ defmodule HeartTestTest do
 
     assert Heart.next_event(heart) == {:event, "pet(1)"}
     assert Heart.next_event(heart) == {:event, "pet(1)"}
+    assert Heart.next_event(heart) == {:event, "sync()"}
     assert Heart.next_event(heart) == {:event, "reboot(0x01234567)"}
     assert Heart.next_event(heart) == {:exit, 0}
   end
@@ -104,6 +105,7 @@ defmodule HeartTestTest do
 
     {:ok, :heart_ack} = Heart.set_cmd(heart, "disable_vm")
 
+    assert Heart.next_event(heart) == {:event, "sync()"}
     assert Heart.next_event(heart) == {:event, "reboot(0x01234567)"}
     assert Heart.next_event(heart) == {:exit, 0}
   end
