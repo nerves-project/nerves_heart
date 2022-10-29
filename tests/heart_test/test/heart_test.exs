@@ -13,6 +13,7 @@ defmodule HeartTestTest do
     heart = start_supervised!({Heart, tmp_dir: context.tmp_dir})
     assert Heart.next_event(heart) == {:heart, :heart_ack}
     assert Heart.next_event(heart) == {:event, "open(/dev/watchdog0) succeeded"}
+    assert Heart.next_event(heart) == {:event, "pet(1)"}
 
     Heart.shutdown(heart)
     assert Heart.next_event(heart) == {:exit, 0}
@@ -22,6 +23,7 @@ defmodule HeartTestTest do
     heart = start_supervised!({Heart, tmp_dir: context.tmp_dir})
     assert Heart.next_event(heart) == {:heart, :heart_ack}
     assert Heart.next_event(heart) == {:event, "open(/dev/watchdog0) succeeded"}
+    assert Heart.next_event(heart) == {:event, "pet(1)"}
 
     Heart.pet(heart)
     assert Heart.next_event(heart) == {:event, "pet(1)"}
@@ -34,11 +36,15 @@ defmodule HeartTestTest do
   end
 
   test "heart doesn't pet watchdog when not petted", context do
+    # The default wdt_timeout is 120s and the VM timeout is 60s, so no
+    # pet should happen. Wait for 6s to detect whether the default pet
+    # timeout of 5 seconds was erroneously used.
     heart = start_supervised!({Heart, tmp_dir: context.tmp_dir})
     assert Heart.next_event(heart) == {:heart, :heart_ack}
     assert Heart.next_event(heart) == {:event, "open(/dev/watchdog0) succeeded"}
+    assert Heart.next_event(heart) == {:event, "pet(1)"}
 
-    assert Heart.next_event(heart, 1000) == :timeout
+    assert Heart.next_event(heart, 6000) == :timeout
 
     Heart.shutdown(heart)
     assert Heart.next_event(heart) == {:exit, 0}
@@ -49,13 +55,43 @@ defmodule HeartTestTest do
     heart = start_supervised!({Heart, tmp_dir: context.tmp_dir, heart_beat_timeout: 11})
     assert Heart.next_event(heart) == {:heart, :heart_ack}
     assert Heart.next_event(heart) == {:event, "open(/dev/watchdog0) succeeded"}
-
-    Process.sleep(15000)
-
     assert Heart.next_event(heart) == {:event, "pet(1)"}
-    assert Heart.next_event(heart) == {:event, "pet(1)"}
+
+    Process.sleep(12000)
+
     assert Heart.next_event(heart) == {:event, "sync()"}
     assert Heart.next_event(heart) == {:event, "reboot(0x01234567)"}
+    assert Heart.next_event(heart) == {:exit, 0}
+  end
+
+  test "hw watchdog gets pet when shorter than vm timeout", context do
+    # The VM timeout defaults to 60. The wdt_timeout of 12 will make the
+    # hw watchdog get pet every 6 seconds.
+    heart = start_supervised!({Heart, tmp_dir: context.tmp_dir, wdt_timeout: 12})
+    assert Heart.next_event(heart) == {:heart, :heart_ack}
+    assert Heart.next_event(heart) == {:event, "open(/dev/watchdog0) succeeded"}
+    assert Heart.next_event(heart) == {:event, "pet(1)"}
+
+    Process.sleep(5000)
+    assert Heart.next_event(heart, 100) == :timeout
+    assert Heart.next_event(heart) == {:event, "pet(1)"}
+
+    Heart.shutdown(heart)
+    assert Heart.next_event(heart) == {:exit, 0}
+  end
+
+  test "hw watchdog gets pet every 5 seconds when bogus timeout read", context do
+    # The VM timeout defaults to 60. The bogus wdt_timeout of 0 will make the
+    # hw watchdog get pet every 5 seconds.
+    heart = start_supervised!({Heart, tmp_dir: context.tmp_dir, wdt_timeout: 0})
+    assert Heart.next_event(heart) == {:heart, :heart_ack}
+    assert Heart.next_event(heart) == {:event, "open(/dev/watchdog0) succeeded"}
+    assert Heart.next_event(heart) == {:event, "pet(1)"}
+
+    Process.sleep(5000)
+    assert Heart.next_event(heart) == {:event, "pet(1)"}
+
+    Heart.shutdown(heart)
     assert Heart.next_event(heart) == {:exit, 0}
   end
 
@@ -63,6 +99,7 @@ defmodule HeartTestTest do
     heart = start_supervised!({Heart, tmp_dir: context.tmp_dir})
     assert Heart.next_event(heart) == {:heart, :heart_ack}
     assert Heart.next_event(heart) == {:event, "open(/dev/watchdog0) succeeded"}
+    assert Heart.next_event(heart) == {:event, "pet(1)"}
 
     {:ok, {:heart_cmd, cmd}} = Heart.get_cmd(heart)
 
@@ -87,6 +124,7 @@ defmodule HeartTestTest do
     heart = start_supervised!({Heart, tmp_dir: context.tmp_dir})
     assert Heart.next_event(heart) == {:heart, :heart_ack}
     assert Heart.next_event(heart) == {:event, "open(/dev/watchdog0) succeeded"}
+    assert Heart.next_event(heart) == {:event, "pet(1)"}
 
     {:ok, :heart_ack} = Heart.set_cmd(heart, "disable_hw")
 
@@ -102,6 +140,7 @@ defmodule HeartTestTest do
     heart = start_supervised!({Heart, tmp_dir: context.tmp_dir})
     assert Heart.next_event(heart) == {:heart, :heart_ack}
     assert Heart.next_event(heart) == {:event, "open(/dev/watchdog0) succeeded"}
+    assert Heart.next_event(heart) == {:event, "pet(1)"}
 
     {:ok, :heart_ack} = Heart.set_cmd(heart, "disable_vm")
 
@@ -131,6 +170,7 @@ defmodule HeartTestTest do
     heart = start_supervised!({Heart, tmp_dir: context.tmp_dir, watchdog_path: "/dev/watchdog1"})
     assert Heart.next_event(heart) == {:heart, :heart_ack}
     assert Heart.next_event(heart) == {:event, "open(/dev/watchdog1) succeeded"}
+    assert Heart.next_event(heart) == {:event, "pet(1)"}
 
     Heart.shutdown(heart)
     assert Heart.next_event(heart) == {:exit, 0}
@@ -140,6 +180,7 @@ defmodule HeartTestTest do
     heart = start_supervised!({Heart, tmp_dir: context.tmp_dir, crash_dump_seconds: 10})
     assert Heart.next_event(heart) == {:heart, :heart_ack}
     assert Heart.next_event(heart) == {:event, "open(/dev/watchdog0) succeeded"}
+    assert Heart.next_event(heart) == {:event, "pet(1)"}
 
     Heart.preparing_crash(heart)
 
@@ -158,6 +199,7 @@ defmodule HeartTestTest do
     heart = start_supervised!({Heart, tmp_dir: context.tmp_dir, crash_dump_seconds: 2})
     assert Heart.next_event(heart) == {:heart, :heart_ack}
     assert Heart.next_event(heart) == {:event, "open(/dev/watchdog0) succeeded"}
+    assert Heart.next_event(heart) == {:event, "pet(1)"}
 
     Heart.preparing_crash(heart)
 

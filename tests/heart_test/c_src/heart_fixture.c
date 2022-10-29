@@ -47,6 +47,7 @@
 
 static int to_elixir_fd = -1;
 static int open_tries = 0;
+static int wdt_timeout = 0;
 
 static void flog(const char *format, ...)
 {
@@ -65,6 +66,7 @@ __attribute__((constructor)) void fixture_init()
 {
     char *report_path = getenv("HEART_REPORT_PATH");
     open_tries = atoi(getenv("HEART_WATCHDOG_OPEN_TRIES"));
+    wdt_timeout = atoi(getenv("WDT_TIMEOUT"));
 
     to_elixir_fd = socket(AF_UNIX, SOCK_DGRAM, 0);
     if (to_elixir_fd < 0)
@@ -212,7 +214,7 @@ REPLACE(int, ioctl, (int fd, unsigned long request, ...))
     case WDIOC_GETTIMEOUT:
         {
             int *v = va_arg(ap, int *);
-            *v = 120;
+            *v = wdt_timeout;
             break;
         }
     case WDIOC_SETPRETIMEOUT:
@@ -230,7 +232,7 @@ REPLACE(int, ioctl, (int fd, unsigned long request, ...))
     case WDIOC_GETTIMELEFT:
         {
             int *v = va_arg(ap, int *);
-            *v = 116;
+            *v = wdt_timeout - 4;
             break;
         }
 
