@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.2.0
+
+This is a significant update since it adds a regression test framework.
+Previously, we had so few changes that we trusted the OTP team's coverage,
+visual inspection and spot checks. No major feature updates are in this release,
+but this unblocks the addition of future updates.
+
+* Changes
+  * Add `disable_vm` command to enable testing of `heart` timing out the Erlang
+    VM. For consistency, this adds `disable_hw` for disabling the petting of the
+    hardware watchdog to verify that failure path. The `disable` command maps to
+    `disable_hw` for backwards compatibility.
+  * Call `sync(2)` before rebooting due to Erlang VM unresponsiveness to reduce
+    data loss.
+  * Open `/dev/watchdog0` on start. On systems that don't start the hardware
+    watchdog on boot, this starts it as soon as possible to avoid the gap until
+    the first "pet" or select timeout to start it.
+
 ## v1.1.0
 
 * Changes

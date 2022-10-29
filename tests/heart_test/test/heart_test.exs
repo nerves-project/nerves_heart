@@ -68,7 +68,7 @@ defmodule HeartTestTest do
 
     assert cmd == """
            program_name=nerves_heart
-           program_version=1.1.0
+           program_version=1.2.0
            heartbeat_timeout=60
            identity=OMAP Watchdog
            firmware_version=0
