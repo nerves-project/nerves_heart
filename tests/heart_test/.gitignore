@@ -25,5 +25,6 @@ heart_test-*.tar
 # Temporary files, for example, from tests.
 /tmp/
 
-*.o
-*.so
+# Don't bother tracking Elixir deps since this is just a test app
+/mix.lock
+

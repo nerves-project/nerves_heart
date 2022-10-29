@@ -14,8 +14,8 @@ defmodule HeartTest.MixProject do
       deps: deps(),
       dialyzer: dialyzer(),
       preferred_cli_env: %{
-        dialyzer: :test,
-        credo: :test
+        dialyzer: :dev,
+        credo: :dev
       }
     ]
   end
@@ -30,14 +30,14 @@ defmodule HeartTest.MixProject do
   defp deps do
     [
       {:elixir_make, "~> 0.6", runtime: false},
-      {:dialyxir, "~> 1.1.0", only: :test, runtime: false},
-      {:credo, "~> 1.2", only: :test, runtime: false}
+      {:dialyxir, "~> 1.2", only: :dev, runtime: false},
+      {:credo, "~> 1.2", only: :dev, runtime: false}
     ]
   end
 
   defp dialyzer() do
     [
-      flags: [:race_conditions, :unmatched_returns, :error_handling, :underspecs]
+      flags: [:missing_return, :extra_return, :unmatched_returns, :error_handling, :underspecs]
     ]
   end
 end

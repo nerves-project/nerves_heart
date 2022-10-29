@@ -75,7 +75,7 @@ defmodule Heart do
 
   @impl GenServer
   def init(init_args) do
-    shim = Path.expand("heart_fixture.so")
+    shim = Application.app_dir(:heart_test, ["priv", "heart_fixture.so"]) |> Path.expand()
     heart = Path.expand("../../heart")
     tmp_dir = init_args[:tmp_dir] || "/tmp"
     reports = Path.join(tmp_dir, "reports.sock")
