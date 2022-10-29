@@ -131,7 +131,7 @@ OVERRIDE(int, open, (const char *pathname, int flags, ...))
     if (strcmp(pathname, "/dev/kmsg") == 0 && (flags & (O_RDWR|O_WRONLY)))
         return dup(STDERR_FILENO);
 
-    if (strcmp(pathname, "/dev/watchdog0") == 0) {
+    if (strncmp(pathname, "/dev/watchdog", 13) == 0) {
         if (open_tries <= 0) {
             flog("open(%s) succeeded", pathname);
             return WATCHDOG_FILENO;

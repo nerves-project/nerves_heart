@@ -126,4 +126,13 @@ defmodule HeartTestTest do
     Heart.shutdown(heart)
     assert Heart.next_event(heart) == {:exit, 0}
   end
+
+  test "non-default watchdog files", context do
+    heart = start_supervised!({Heart, tmp_dir: context.tmp_dir, watchdog_path: "/dev/watchdog1"})
+    assert Heart.next_event(heart) == {:heart, :heart_ack}
+    assert Heart.next_event(heart) == {:event, "open(/dev/watchdog1) succeeded"}
+
+    Heart.shutdown(heart)
+    assert Heart.next_event(heart) == {:exit, 0}
+  end
 end
