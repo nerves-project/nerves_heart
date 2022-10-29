@@ -140,16 +140,22 @@ struct msg {
 /*  Maybe interesting to change */
 
 /* Times in seconds */
-#define  SELECT_TIMEOUT               5  /* Every 5 seconds we reset the
-					    watchdog timer */
+#define  DEFAULT_WDT_PET_TIMEOUT    5  /* Every 5 seconds we reset the watchdog timer */
+#define  WDT_PET_TIMEOUT_BUFFER     10 /* Pet the watchdog 10 seconds before it would expire */
+static int wdt_pet_timeout = DEFAULT_WDT_PET_TIMEOUT;
 
 /* heart_beat_timeout is the maximum gap in seconds between two
    consecutive heart beat messages from Erlang. */
+static int heart_beat_timeout = 60;
 
-int heart_beat_timeout = 60;
+/* wdt_timeout is the maximum gap in seconds between two consecutive heart beat
+ * messages before the hardware watchdog times out.
+ */
+static int wdt_timeout = 60;
+
 /* All current platforms have a process identifier that
    fits in an unsigned long and where 0 is an impossible or invalid value */
-pid_t heart_beat_kill_pid = 0;
+static pid_t heart_beat_kill_pid = 0;
 
 /* reasons for reboot */
 #define  R_TIMEOUT          (1)
@@ -219,7 +225,24 @@ static void try_open_watchdog()
         }
         watchdog_fd = open(watchdog_path, O_WRONLY);
         if (watchdog_fd > 0) {
-            print_log("heart: kernel watchdog activated (interval %ds)", SELECT_TIMEOUT);
+            int real_wdt_timeout;
+            int ret;
+
+            ret = ioctl(watchdog_fd, WDIOC_GETTIMEOUT, &real_wdt_timeout);
+            if (ret == 0 && real_wdt_timeout >= 5) {
+                wdt_timeout = real_wdt_timeout;
+                /* Most of the time, pet WDT_PET_TIMEOUT_BUFFER seconds before the timeout,
+                 * but if it's really short, then pet half the timeout.
+                 */
+                if (real_wdt_timeout > 2*WDT_PET_TIMEOUT_BUFFER)
+                    wdt_pet_timeout = real_wdt_timeout - WDT_PET_TIMEOUT_BUFFER;
+                else
+                    wdt_pet_timeout = real_wdt_timeout / 2;
+            } else if (ret != 0) {
+                print_log("heart: error or too short WDT timeout so using defaults!");
+            }
+
+            print_log("heart: kernel watchdog activated. WDT timeout %ds, WDT pet interval %ds, VM timeout %ds", wdt_timeout, wdt_pet_timeout, heart_beat_timeout);
         } else {
             watchdog_open_retries--;
             if (watchdog_open_retries <= 0)
@@ -293,12 +316,13 @@ int main(int argc, char **argv)
     get_arguments(argc, argv);
     notify_ack();
 
-    try_open_watchdog();
-
     do_terminate(message_loop());
 
     return 0;
 }
+
+static inline int max(int x, int y) { if (x > y) return x; else return y; }
+static inline int min(int x, int y) { if (x > y) return y; else return x; }
 
 /*
  * message loop
@@ -306,20 +330,23 @@ int main(int argc, char **argv)
 static int message_loop()
 {
     int   i;
-    time_t now, last_received;
+    time_t now, last_received, last_pet;
     fd_set read_fds;
     int   max_fd;
     struct timeval timeout;
     int   tlen;           /* total message length */
-    struct msg m, *mp = &m;
+    struct msg m;
 
-    last_received = timestamp_seconds();
+    /* Pet the hw watchdog on start */
+    pet_watchdog();
+    now = last_received = last_pet = timestamp_seconds();
+
     max_fd = STDIN_FILENO;
 
     while (1) {
         FD_ZERO(&read_fds);         /* ZERO on each turn */
         FD_SET(STDIN_FILENO, &read_fds);
-        timeout.tv_sec = SELECT_TIMEOUT;  /* On Linux timeout is modified by select */
+        timeout.tv_sec = max(1, min(last_received + heart_beat_timeout - now, last_pet + wdt_pet_timeout - now));
         timeout.tv_usec = 0;
         if ((i = select(max_fd + 1, &read_fds, NULLFDS, NULLFDS, &timeout)) < 0) {
             print_log("heart: select failed: %s", strerror(errno));
@@ -327,7 +354,7 @@ static int message_loop()
         }
 
         now = timestamp_seconds();
-        if (now > last_received + heart_beat_timeout) {
+        if (now >= last_received + heart_beat_timeout) {
             print_log("heart: heartbeat timeout -> no activity for %lu seconds",
                   (unsigned long) (now - last_received));
             return R_TIMEOUT;
@@ -337,30 +364,31 @@ static int message_loop()
          */
         if (i == 0) {
             pet_watchdog();
+            last_pet = now;
             continue;
         }
         /*
          * Message from ERLANG
          */
         if (FD_ISSET(STDIN_FILENO, &read_fds)) {
-            if ((tlen = read_message(STDIN_FILENO, mp)) < 0) {
+            if ((tlen = read_message(STDIN_FILENO, &m)) < 0) {
                 print_log("heart: error from read_message:  %s", strerror(errno));
                 return R_ERROR;
             }
             if ((tlen > MSG_HDR_SIZE) && (tlen <= MSG_TOTAL_SIZE)) {
-                int mp_len = htons(mp->len);
+                int mp_len = htons(m.len);
 
-                switch (mp->op) {
+                switch (m.op) {
                 case HEART_BEAT:
                     pet_watchdog();
-                    last_received = timestamp_seconds();
+                    last_pet = last_received = now;
                     break;
                 case SHUT_DOWN:
                     return R_SHUT_DOWN;
                 case SET_CMD:
                     /* If the user specifies "disable" or "disable_hw", turn off the hw watchdog petter to verify that the system reboots. */
-                    if ((mp_len == 8 && memcmp(mp->fill, "disable", 7) == 0) ||
-                        (mp_len == 11 && memcmp(mp->fill, "disable_hw", 10) == 0)) {
+                    if ((mp_len == 8 && memcmp(m.fill, "disable", 7) == 0) ||
+                        (mp_len == 11 && memcmp(m.fill, "disable_hw", 10) == 0)) {
                         print_log("heart: Petting of the hardware watchdog is disabled. System should reboot momentarily.");
 
                         /* Disable petting of the hardware watchdog */
@@ -368,7 +396,7 @@ static int message_loop()
                         watchdog_fd = -1;
                     }
                     /* If the user specifies "disable_vm", return like there was a timeout */
-                    if (mp_len == 11 && memcmp(mp->fill, "disable_vm", 10) == 0) {
+                    if (mp_len == 11 && memcmp(m.fill, "disable_vm", 10) == 0) {
                         print_log("heart: Forced heart process timeout. System should reboot momentarily.");
 
                         notify_ack();

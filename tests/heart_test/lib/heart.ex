@@ -70,7 +70,7 @@ defmodule Heart do
   """
   @spec next_event(GenServer.server(), non_neg_integer()) :: event() | :timeout
   def next_event(server, timeout \\ 1000) do
-    GenServer.call(server, {:next_event, timeout})
+    GenServer.call(server, {:next_event, timeout}, timeout + 500)
   end
 
   @impl GenServer
@@ -82,10 +82,18 @@ defmodule Heart do
     heart_beat_timeout = init_args[:heart_beat_timeout] || 60
     open_tries = init_args[:open_tries] || 0
     watchdog_path = init_args[:watchdog_path]
+    wdt_timeout = init_args[:wdt_timeout] || 120
 
     watchdog_path_env =
       if watchdog_path do
         [{~c"HEART_WATCHDOG_PATH", to_charlist(watchdog_path)}]
+      else
+        []
+      end
+
+    wdt_timeout_env =
+      if wdt_timeout do
+        [{~c"WDT_TIMEOUT", ~c"#{wdt_timeout}"}]
       else
         []
       end
@@ -119,7 +127,7 @@ defmodule Heart do
              {~c"DYLD_INSERT_LIBRARIES", c_shim},
              {~c"HEART_REPORT_PATH", to_charlist(reports)},
              {~c"HEART_WATCHDOG_OPEN_TRIES", to_charlist(open_tries)}
-           ] ++ watchdog_path_env ++ crash_dump_seconds_env},
+           ] ++ watchdog_path_env ++ crash_dump_seconds_env ++ wdt_timeout_env},
           :exit_status
         ]
       )
