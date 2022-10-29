@@ -90,6 +90,15 @@ defmodule Heart do
         []
       end
 
+    crash_dump_seconds = init_args[:crash_dump_seconds]
+
+    crash_dump_seconds_env =
+      if crash_dump_seconds do
+        [{~c"ERL_CRASH_DUMP_SECONDS", ~c"#{crash_dump_seconds}"}]
+      else
+        []
+      end
+
     File.exists?(shim) || raise "Can't find heart_fixture.so"
     File.exists?(heart) || raise "Can't find heart"
     File.exists?(tmp_dir) || raise "Can't find #{inspect(tmp_dir)}"
@@ -110,7 +119,7 @@ defmodule Heart do
              {~c"DYLD_INSERT_LIBRARIES", c_shim},
              {~c"HEART_REPORT_PATH", to_charlist(reports)},
              {~c"HEART_WATCHDOG_OPEN_TRIES", to_charlist(open_tries)}
-           ] ++ watchdog_path_env},
+           ] ++ watchdog_path_env ++ crash_dump_seconds_env},
           :exit_status
         ]
       )

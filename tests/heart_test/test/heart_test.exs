@@ -135,4 +135,38 @@ defmodule HeartTestTest do
     Heart.shutdown(heart)
     assert Heart.next_event(heart) == {:exit, 0}
   end
+
+  test "crash dump waits for notification", context do
+    heart = start_supervised!({Heart, tmp_dir: context.tmp_dir, crash_dump_seconds: 10})
+    assert Heart.next_event(heart) == {:heart, :heart_ack}
+    assert Heart.next_event(heart) == {:event, "open(/dev/watchdog0) succeeded"}
+
+    Heart.preparing_crash(heart)
+
+    # Nothing should happen
+    assert Heart.next_event(heart, 500) == :timeout
+
+    # Any write to the socket will cause a reboot now.
+    Heart.pet(heart)
+
+    assert Heart.next_event(heart) == {:event, "sync()"}
+    assert Heart.next_event(heart) == {:event, "reboot(0x01234567)"}
+    assert Heart.next_event(heart) == {:exit, 0}
+  end
+
+  test "crash dump crashes anyway after timeout", context do
+    heart = start_supervised!({Heart, tmp_dir: context.tmp_dir, crash_dump_seconds: 2})
+    assert Heart.next_event(heart) == {:heart, :heart_ack}
+    assert Heart.next_event(heart) == {:event, "open(/dev/watchdog0) succeeded"}
+
+    Heart.preparing_crash(heart)
+
+    # Nothing should happen
+    assert Heart.next_event(heart, 1500) == :timeout
+
+    # Timeout should trigger a crash now
+    assert Heart.next_event(heart) == {:event, "sync()"}
+    assert Heart.next_event(heart) == {:event, "reboot(0x01234567)"}
+    assert Heart.next_event(heart) == {:exit, 0}
+  end
 end
