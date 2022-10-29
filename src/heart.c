@@ -348,6 +348,8 @@ static int message_loop()
                 return R_ERROR;
             }
             if ((tlen > MSG_HDR_SIZE) && (tlen <= MSG_TOTAL_SIZE)) {
+                int mp_len = htons(mp->len);
+
                 switch (mp->op) {
                 case HEART_BEAT:
                     pet_watchdog();
@@ -357,8 +359,8 @@ static int message_loop()
                     return R_SHUT_DOWN;
                 case SET_CMD:
                     /* If the user specifies "disable" or "disable_hw", turn off the hw watchdog petter to verify that the system reboots. */
-                    if ((mp->len > 7 && memcmp(mp->fill, "disable", 7) == 0) ||
-                        (mp->len > 10 && memcmp(mp->fill, "disable_hw", 10) == 0)) {
+                    if ((mp_len == 8 && memcmp(mp->fill, "disable", 7) == 0) ||
+                        (mp_len == 11 && memcmp(mp->fill, "disable_hw", 10) == 0)) {
                         print_log("heart: Petting of the hardware watchdog is disabled. System should reboot momentarily.");
 
                         /* Disable petting of the hardware watchdog */
@@ -366,7 +368,7 @@ static int message_loop()
                         watchdog_fd = -1;
                     }
                     /* If the user specifies "disable_vm", return like there was a timeout */
-                    if (mp->len > 10 && memcmp(mp->fill, "disable_vm", 10) == 0) {
+                    if (mp_len == 11 && memcmp(mp->fill, "disable_vm", 10) == 0) {
                         print_log("heart: Forced heart process timeout. System should reboot momentarily.");
 
                         notify_ack();
