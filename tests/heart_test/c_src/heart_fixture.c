@@ -46,6 +46,7 @@
 #define WATCHDOG_FILENO 9999
 
 static int to_elixir_fd = -1;
+static int open_tries = 0;
 
 static void flog(const char *format, ...)
 {
@@ -63,6 +64,7 @@ static void flog(const char *format, ...)
 __attribute__((constructor)) void fixture_init()
 {
     char *report_path = getenv("HEART_REPORT_PATH");
+    open_tries = atoi(getenv("HEART_WATCHDOG_OPEN_TRIES"));
 
     to_elixir_fd = socket(AF_UNIX, SOCK_DGRAM, 0);
     if (to_elixir_fd < 0)
@@ -124,8 +126,16 @@ OVERRIDE(int, open, (const char *pathname, int flags, ...))
     if (strcmp(pathname, "/dev/kmsg") == 0 && (flags & (O_RDWR|O_WRONLY)))
         return dup(STDERR_FILENO);
 
-    if (strcmp(pathname, "/dev/watchdog0") == 0)
-        return WATCHDOG_FILENO;
+    if (strcmp(pathname, "/dev/watchdog0") == 0) {
+        if (open_tries <= 0) {
+            flog("open(%s) succeeded", pathname);
+            return WATCHDOG_FILENO;
+        } else {
+            flog("open(%s) failed", pathname);
+            open_tries--;
+            return -1;
+        }
+    }
 
     return ORIGINAL(open)(pathname, flags, mode);
 }

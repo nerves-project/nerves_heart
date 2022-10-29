@@ -12,6 +12,7 @@ defmodule HeartTestTest do
   test "heart acks on start and exits on shutdown", context do
     heart = start_supervised!({Heart, tmp_dir: context.tmp_dir})
     assert Heart.next_event(heart) == {:heart, :heart_ack}
+    assert Heart.next_event(heart) == {:event, "open(/dev/watchdog0) succeeded"}
 
     Heart.shutdown(heart)
     assert Heart.next_event(heart) == {:exit, 0}
@@ -20,6 +21,7 @@ defmodule HeartTestTest do
   test "heart pets watchdog when petted itself", context do
     heart = start_supervised!({Heart, tmp_dir: context.tmp_dir})
     assert Heart.next_event(heart) == {:heart, :heart_ack}
+    assert Heart.next_event(heart) == {:event, "open(/dev/watchdog0) succeeded"}
 
     Heart.pet(heart)
     assert Heart.next_event(heart) == {:event, "pet(1)"}
@@ -34,6 +36,7 @@ defmodule HeartTestTest do
   test "heart doesn't pet watchdog when not petted", context do
     heart = start_supervised!({Heart, tmp_dir: context.tmp_dir})
     assert Heart.next_event(heart) == {:heart, :heart_ack}
+    assert Heart.next_event(heart) == {:event, "open(/dev/watchdog0) succeeded"}
 
     assert Heart.next_event(heart, 1000) == :timeout
 
@@ -45,6 +48,7 @@ defmodule HeartTestTest do
     # Shortest timeout is 11 seconds
     heart = start_supervised!({Heart, tmp_dir: context.tmp_dir, heart_beat_timeout: 11})
     assert Heart.next_event(heart) == {:heart, :heart_ack}
+    assert Heart.next_event(heart) == {:event, "open(/dev/watchdog0) succeeded"}
 
     Process.sleep(15000)
 
@@ -57,6 +61,7 @@ defmodule HeartTestTest do
   test "getting heart status", context do
     heart = start_supervised!({Heart, tmp_dir: context.tmp_dir})
     assert Heart.next_event(heart) == {:heart, :heart_ack}
+    assert Heart.next_event(heart) == {:event, "open(/dev/watchdog0) succeeded"}
 
     {:ok, {:heart_cmd, cmd}} = Heart.get_cmd(heart)
 
@@ -80,12 +85,30 @@ defmodule HeartTestTest do
   test "sending disable stops petting the hardware watchdog", context do
     heart = start_supervised!({Heart, tmp_dir: context.tmp_dir})
     assert Heart.next_event(heart) == {:heart, :heart_ack}
+    assert Heart.next_event(heart) == {:event, "open(/dev/watchdog0) succeeded"}
 
     {:ok, :heart_ack} = Heart.set_cmd(heart, "disable")
 
     Process.sleep(10000)
 
     assert Heart.next_event(heart, 1000) == :timeout
+
+    Heart.shutdown(heart)
+    assert Heart.next_event(heart) == {:exit, 0}
+  end
+
+  test "retrying opening the hardware watchdog", context do
+    # This tests the case when the hardware watchdog driver
+    # comes up after heart does. This can happen if the driver
+    # is compiled as a module.
+    heart = start_supervised!({Heart, tmp_dir: context.tmp_dir, open_tries: 1})
+    assert Heart.next_event(heart) == {:heart, :heart_ack}
+    assert Heart.next_event(heart) == {:event, "open(/dev/watchdog0) failed"}
+
+    Process.sleep(6000)
+
+    assert Heart.next_event(heart) == {:event, "open(/dev/watchdog0) succeeded"}
+    assert Heart.next_event(heart) == {:event, "pet(1)"}
 
     Heart.shutdown(heart)
     assert Heart.next_event(heart) == {:exit, 0}

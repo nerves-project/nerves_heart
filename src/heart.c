@@ -207,7 +207,7 @@ static char *get_env(char *key)
     return getenv(key);
 }
 
-static void pet_watchdog()
+static void try_open_watchdog()
 {
     /* The watchdog device sometimes takes a bit to appear, so give it a few tries. */
     if (watchdog_fd < 0) {
@@ -228,6 +228,11 @@ static void pet_watchdog()
             return;
         }
     }
+}
+
+static void pet_watchdog()
+{
+    try_open_watchdog();
 
     if (write(watchdog_fd, "\0", 1) < 0)
         print_log("heart: error petting watchdog: %s", strerror(errno));
@@ -288,6 +293,9 @@ int main(int argc, char **argv)
 
     get_arguments(argc, argv);
     notify_ack();
+
+    try_open_watchdog();
+
     do_terminate(message_loop());
 
     return 0;

@@ -80,6 +80,7 @@ defmodule Heart do
     tmp_dir = init_args[:tmp_dir] || "/tmp"
     reports = Path.join(tmp_dir, "reports.sock")
     heart_beat_timeout = init_args[:heart_beat_timeout] || 60
+    open_tries = init_args[:open_tries] || 0
 
     File.exists?(shim) || raise "Can't find heart_fixture.so"
     File.exists?(heart) || raise "Can't find heart"
@@ -99,7 +100,8 @@ defmodule Heart do
            [
              {~c"LD_PRELOAD", c_shim},
              {~c"DYLD_INSERT_LIBRARIES", c_shim},
-             {~c"HEART_REPORT_PATH", to_charlist(reports)}
+             {~c"HEART_REPORT_PATH", to_charlist(reports)},
+             {~c"HEART_WATCHDOG_OPEN_TRIES", to_charlist(open_tries)}
            ]},
           :exit_status
         ]
