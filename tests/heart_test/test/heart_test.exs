@@ -2,9 +2,14 @@ defmodule HeartTestTest do
   use ExUnit.Case, async: true
   doctest Heart
 
+  setup_all do
+    File.rm_rf!("/tmp/heart_test")
+    []
+  end
+
   setup do
     # We need short temporary directory paths, so create them ourselves.
-    path = "/tmp/heart_test/#{:rand.uniform(10000)}"
+    path = "/tmp/heart_test/#{:rand.uniform(1_000_000)}"
     File.mkdir_p!(path)
     [tmp_dir: path]
   end
