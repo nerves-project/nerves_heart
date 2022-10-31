@@ -479,8 +479,12 @@ do_terminate(int reason)
 {
     switch (reason) {
     case R_SHUT_DOWN:
+        // Pet watchdog to give remainder of graceful shutdown code time to run
+        pet_watchdog();
         break;
     case R_CRASHING:
+        // Pet watchdog to avoid unintended WDT reset during crash
+        pet_watchdog();
         if (is_env_set(ERL_CRASH_DUMP_SECONDS_ENV)) {
             const char *tmo_env = get_env(ERL_CRASH_DUMP_SECONDS_ENV);
             int tmo = atoi(tmo_env);
