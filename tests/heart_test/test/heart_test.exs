@@ -9,14 +9,24 @@ defmodule HeartTestTest do
     [tmp_dir: path]
   end
 
+  defp graceful_shutdown(heart) do
+    # The event queue should be empty
+    assert Heart.next_event(heart, 0) == :timeout
+
+    # Request a graceful shutdown and then wait for the
+    # final WDT pet and exit
+    Heart.shutdown(heart)
+    assert Heart.next_event(heart) == {:event, "pet(1)"}
+    assert Heart.next_event(heart) == {:exit, 0}
+  end
+
   test "heart acks on start and exits on shutdown", context do
     heart = start_supervised!({Heart, tmp_dir: context.tmp_dir})
     assert Heart.next_event(heart) == {:heart, :heart_ack}
     assert Heart.next_event(heart) == {:event, "open(/dev/watchdog0) succeeded"}
     assert Heart.next_event(heart) == {:event, "pet(1)"}
 
-    Heart.shutdown(heart)
-    assert Heart.next_event(heart) == {:exit, 0}
+    graceful_shutdown(heart)
   end
 
   test "heart pets watchdog when petted itself", context do
@@ -31,8 +41,7 @@ defmodule HeartTestTest do
     Heart.pet(heart)
     assert Heart.next_event(heart) == {:event, "pet(1)"}
 
-    Heart.shutdown(heart)
-    assert Heart.next_event(heart) == {:exit, 0}
+    graceful_shutdown(heart)
   end
 
   test "heart doesn't pet watchdog when not petted", context do
@@ -46,8 +55,7 @@ defmodule HeartTestTest do
 
     assert Heart.next_event(heart, 6000) == :timeout
 
-    Heart.shutdown(heart)
-    assert Heart.next_event(heart) == {:exit, 0}
+    graceful_shutdown(heart)
   end
 
   test "heart reboots when not petted", context do
@@ -76,8 +84,7 @@ defmodule HeartTestTest do
     assert Heart.next_event(heart, 100) == :timeout
     assert Heart.next_event(heart) == {:event, "pet(1)"}
 
-    Heart.shutdown(heart)
-    assert Heart.next_event(heart) == {:exit, 0}
+    graceful_shutdown(heart)
   end
 
   test "hw watchdog gets pet every 5 seconds when bogus timeout read", context do
@@ -91,8 +98,7 @@ defmodule HeartTestTest do
     Process.sleep(5000)
     assert Heart.next_event(heart) == {:event, "pet(1)"}
 
-    Heart.shutdown(heart)
-    assert Heart.next_event(heart) == {:exit, 0}
+    graceful_shutdown(heart)
   end
 
   test "getting heart status", context do
@@ -116,8 +122,7 @@ defmodule HeartTestTest do
            last_boot=power_on
            """
 
-    Heart.shutdown(heart)
-    assert Heart.next_event(heart) == {:exit, 0}
+    graceful_shutdown(heart)
   end
 
   test "sending disable_hw stops petting the hardware watchdog", context do
@@ -132,6 +137,7 @@ defmodule HeartTestTest do
 
     assert Heart.next_event(heart, 1000) == :timeout
 
+    # NOTE: even graceful shutdown doesn't do a final pet of the WDT
     Heart.shutdown(heart)
     assert Heart.next_event(heart) == {:exit, 0}
   end
@@ -162,8 +168,7 @@ defmodule HeartTestTest do
     assert Heart.next_event(heart) == {:event, "open(/dev/watchdog0) succeeded"}
     assert Heart.next_event(heart) == {:event, "pet(1)"}
 
-    Heart.shutdown(heart)
-    assert Heart.next_event(heart) == {:exit, 0}
+    graceful_shutdown(heart)
   end
 
   test "non-default watchdog files", context do
@@ -172,8 +177,7 @@ defmodule HeartTestTest do
     assert Heart.next_event(heart) == {:event, "open(/dev/watchdog1) succeeded"}
     assert Heart.next_event(heart) == {:event, "pet(1)"}
 
-    Heart.shutdown(heart)
-    assert Heart.next_event(heart) == {:exit, 0}
+    graceful_shutdown(heart)
   end
 
   test "crash dump waits for notification", context do
@@ -184,7 +188,10 @@ defmodule HeartTestTest do
 
     Heart.preparing_crash(heart)
 
-    # Nothing should happen
+    # Capture the WDT pet that's sent before the crash
+    assert Heart.next_event(heart) == {:event, "pet(1)"}
+
+    # Nothing should happen now
     assert Heart.next_event(heart, 500) == :timeout
 
     # Any write to the socket will cause a reboot now.
@@ -202,6 +209,9 @@ defmodule HeartTestTest do
     assert Heart.next_event(heart) == {:event, "pet(1)"}
 
     Heart.preparing_crash(heart)
+
+    # Capture the WDT pet that's sent before the crash
+    assert Heart.next_event(heart) == {:event, "pet(1)"}
 
     # Nothing should happen
     assert Heart.next_event(heart, 1500) == :timeout
