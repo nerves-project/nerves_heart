@@ -3,23 +3,62 @@
 [![CircleCI](https://circleci.com/gh/nerves-project/nerves_heart.svg?style=svg)](https://circleci.com/gh/nerves-project/nerves_heart)
 
 This is a replacement for Erlang's `heart` port process specifically for
-Nerves-based devices. [Heart](http://erlang.org/doc/man/heart.html) monitors the
-Erlang runtime using heartbeat messages. If the Erlang runtime becomes
-unresponsive, `heart` reboots the system. This implementation of `heart` is
-fully compatible with the default implementation and provides the following
-changes:
+Nerves-based devices. It is installed by default on all Nerves devices.
 
-1. Support for hardware watchdogs so that if both the Erlang runtime and
-   `heart` become unresponsive, the hardware watchdog can reboot the system
-2. Only monotonic time is used. The Erlang implementation of `heart` could use
-   wall clock time and reboot the system for time changes larger than the
-   heartbeat period. This is obviously not desirable on Nerves devices that run
-   code on the Erlang VM that initializes the system clock.
-3. Directly calls
-   [reboot(2)](http://man7.org/linux/man-pages/man2/reboot.2.html). The reboot
-   call is not configurable nor is it necessary to invoke another program.
-4. Simplified code base. Code not needed for Nerves devices has been removed to
-   make the program easier to audit.
+[Heart](http://erlang.org/doc/man/heart.html) monitors the Erlang runtime using
+heart beat messages. If the Erlang runtime becomes unresponsive, `heart` reboots
+the system. This implementation of `heart` is fully compatible with the default
+implementation and provides the following changes:
+
+1. Supports a hardware watchdog timer (WDT) so that if both the Erlang runtime
+   and `heart` become unresponsive, the hardware watchdog can reboot the system
+2. Simplifies the code base. Code not needed for Nerves devices has been removed
+   to make the program easier to audit.
+3. Provides diagnostic information. See
+   [Nerves.Runtime.Heart](https://hexdocs.pm/nerves_runtime/Nerves.Runtime.Heart.html#status/0)
+   for an easier interface to get this.
+4. Directly calls [sync(2)](https://man7.org/linux/man-pages/man2/sync.2.html)
+   and [reboot(2)](http://man7.org/linux/man-pages/man2/reboot.2.html) when
+   Erlang is unresponsive. The reboot call is not configurable nor is it
+   necessary to invoke another program.
+
+## Timeouts and semantics
+
+The following timeouts are important to `nerves_heart`:
+
+* Erlang VM heart beat timeout - the time interval for Erlang heart beat messages
+* Watchdog Timer (WDT) timeout - the time interval that before the WDT resets the device
+* WDT pet timeout - the time interval that `nerves_heart` pets the WDT
+
+The WDT pet timeout is always shorter than the WDT timeout. The Erlang VM heart
+beat timer may be longer or shorter than the WDT timeout. Heart beat messages
+from Erlang reset the heart beat timer and pet the WDT.  In the case that Erlang
+sends heart beat messages frequent enough to satisfy the heart beat timeout, but
+at a shorter interval than the WDT pet timeout, `nerves_heart` will
+automatically pet the WDT.
+
+In the event that Erlang is unresponsive and if `nerves_heart` is still able to
+run, it will reboot the system by calling `sync(2)` and then `reboot(2)`. If
+even `nerves_heart` is unresponsive, the WDT will reset the system. This will
+also happen if `sync(2)` or `reboot(2)` hang `nerves_heart`.
+
+If you stop the Erlang VM gracefully (such as by calling `:init.stop/0`), Erlang
+will tell `nerves_heart` to exit without rebooting.  This, however, will stop
+petting the WDT which will also lead to a system reset if the Linux kernel has
+`CONFIG_WATCHDOG_NOWAYOUT=y` in its configuration. All official Nerves systems
+specify this option.
+
+WDT pet decisions made by `nerves_heart`:
+
+1. Pet the WDT on start. This is important since it's unknown
+   how much time has passed since the WDT has been started and when
+   `nerves_heart` is started. This prevents a reboot due to a slow boot time.
+2. Pet the WDT on Erlang heart beat messages AND pet timeout events. This makes
+   the Erlang VM heart beat timeout the critical one in deciding when reboots
+   happen.
+3. Pet the WDT once on graceful shutdown and requested crash dumps. The
+   intention is to give other shutdown code or crash dump preparation code the
+   full WDT timeout interval.
 
 ## Using
 
