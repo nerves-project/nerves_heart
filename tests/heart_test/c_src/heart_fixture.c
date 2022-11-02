@@ -128,6 +128,10 @@ OVERRIDE(ssize_t, write, (int fildes, const void *buf, size_t nbyte))
 
 OVERRIDE(int, select, (int nfds, fd_set *readfds, fd_set *writefds, fd_set *errorfds, struct timeval *timeout))
 {
+    if (timeout == NULL || timeout->tv_sec > 86400) {
+        flog("Bad timeout passed to select!");
+        return -1;
+    }
     return ORIGINAL(select)(nfds, readfds, writefds, errorfds, timeout);
 }
 
