@@ -226,4 +226,52 @@ defmodule HeartTestTest do
     assert Heart.next_event(heart) == {:event, "reboot(0x01234567)"}
     assert Heart.next_event(heart) == {:exit, 0}
   end
+
+  test "guarded reboot", context do
+    heart = start_supervised!({Heart, tmp_dir: context.tmp_dir})
+    assert Heart.next_event(heart) == {:heart, :heart_ack}
+    assert Heart.next_event(heart) == {:event, "open(/dev/watchdog0) succeeded"}
+    assert Heart.next_event(heart) == {:event, "pet(1)"}
+
+    {:ok, :heart_ack} = Heart.set_cmd(heart, "guarded_reboot")
+
+    # Final WDT pet
+    assert Heart.next_event(heart) == {:event, "pet(1)"}
+
+    # Tell PID 1 to reboot
+    assert Heart.next_event(heart) == {:event, "kill(1, SIGTERM)"}
+
+    # Proactive sync
+    assert Heart.next_event(heart) == {:event, "sync()"}
+
+    Process.sleep(6)
+
+    # Run normal shutdown and check that there aren't any more WDT pets
+    Heart.shutdown(heart)
+    assert Heart.next_event(heart) == {:exit, 0}
+  end
+
+  test "guarded poweroff", context do
+    heart = start_supervised!({Heart, tmp_dir: context.tmp_dir})
+    assert Heart.next_event(heart) == {:heart, :heart_ack}
+    assert Heart.next_event(heart) == {:event, "open(/dev/watchdog0) succeeded"}
+    assert Heart.next_event(heart) == {:event, "pet(1)"}
+
+    {:ok, :heart_ack} = Heart.set_cmd(heart, "guarded_poweroff")
+
+    # Final WDT pet
+    assert Heart.next_event(heart) == {:event, "pet(1)"}
+
+    # Tell PID 1 to reboot
+    assert Heart.next_event(heart) == {:event, "kill(1, SIGUSR1)"}
+
+    # Proactive sync
+    assert Heart.next_event(heart) == {:event, "sync()"}
+
+    Process.sleep(6)
+
+    # Run normal shutdown and check that there aren't any more WDT pets
+    Heart.shutdown(heart)
+    assert Heart.next_event(heart) == {:exit, 0}
+  end
 end

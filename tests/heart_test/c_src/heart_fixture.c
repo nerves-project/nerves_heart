@@ -103,7 +103,16 @@ REPLACE(int, reboot, (int cmd))
 
 REPLACE(int, kill, (pid_t pid, int sig))
 {
-    flog("kill(%d, %d)", pid, sig);
+    const char *signal_name;
+    switch (sig) {
+    case SIGTERM: signal_name = "SIGTERM"; break;
+    case SIGKILL: signal_name = "SIGKILL"; break;
+    case SIGUSR1: signal_name = "SIGUSR1"; break;
+    case SIGUSR2: signal_name = "SIGUSR2"; break;
+    default: signal_name = "UNEXPECTED!"; break;
+    }
+
+    flog("kill(%d, %s)", pid, signal_name);
     return 0;
 }
 

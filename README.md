@@ -21,6 +21,7 @@ implementation and provides the following changes:
    and [reboot(2)](http://man7.org/linux/man-pages/man2/reboot.2.html) when
    Erlang is unresponsive. The reboot call is not configurable nor is it
    necessary to invoke another program.
+5. Trigger watchdog-protected reboots and shutdowns
 
 ## Timeouts and semantics
 
@@ -165,6 +166,42 @@ The following table describes keys and their values:
 | `:timeout` | The hardware watchdog timeout. This is only changeable in the Linux configuration |
 | `:last_boot` | What caused the most recent boot. Whether this is reliable depends on the watchdog. |
 | `:heartbeat_timeout` | Erlang's heartbeat timeout setting. Note that the hardware watchdog timeout supersedes this since it reboots. |
+
+## Reboot and power off
+
+The `:heart.set_cmd/1` function can be used to trigger reboots and shutdowns.
+
+To understand why, it's good to review the alternatives. The other ways of
+rebooting with Nerves are either by exiting the Erlang VM via `:init.stop/0` or
+by running the `reboot(8)` or `poweroff(8)` shell commands. The latter two work
+by sending a signal to PID 1 (`erlinit`) that kills all OS processes and does
+the reboot and power off. These work well in practice, but have had failures
+blamed on them that can be further reduced by using Nerves Heart. For example,
+one failure was found where OS processes couldn't be started and therefore
+`reboot(8)` wasn't being called. This ended up causing a hang that wasn't
+resolved for a long time.  Since using Nerves Heart to reboot does not create OS
+processes, it would not have this issue and if communication problems between Nerves
+Heart and Erlang arise, that will be detected by the heart beat timers. There's
+lots to say about this topic. Suffice it to say that the heart process has
+advantages in simplicity and control of the hardware WDT to make this process
+more reliable.
+
+To use, run either:
+
+```elixir
+iex> :heart.set_cmd("guarded_reboot")
+```
+
+or
+
+```elixir
+iex> :heart.set_cmd("guarded_poweroff")
+```
+
+Nerves Heart will notify PID 1 of the intention to reboot or poweroff. However,
+the WDT will be pet for the last time. You should then call either
+`:init.stop/0` (graceful) or `:erlang.halt/0` (ungraceful) to exit the Erlang
+VM. Both `erlinit` and the WDT will prevent shutdown from not completing.
 
 ## Testing
 
