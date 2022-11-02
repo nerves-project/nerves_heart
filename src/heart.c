@@ -148,10 +148,16 @@ static int wdt_pet_timeout = DEFAULT_WDT_PET_TIMEOUT;
    consecutive heart beat messages from Erlang. */
 static int heart_beat_timeout = 60;
 
+/* last_heart_beat_time is the absolute time that the previous heart beat was received */
+static time_t last_heart_beat_time = 0;
+
 /* wdt_timeout is the maximum gap in seconds between two consecutive heart beat
  * messages before the hardware watchdog times out.
  */
 static int wdt_timeout = 60;
+
+/* last_wdt_pet_time is the absolute time that hardware watchdog was pet */
+static time_t last_wdt_pet_time = 0;
 
 /* All current platforms have a process identifier that
    fits in an unsigned long and where 0 is an impossible or invalid value */
@@ -331,7 +337,7 @@ static inline int min(int x, int y) { if (x > y) return y; else return x; }
 static int message_loop()
 {
     int   i;
-    time_t now, last_received, last_pet;
+    time_t now;
     fd_set read_fds;
     int   max_fd;
     struct timeval timeout;
@@ -340,24 +346,25 @@ static int message_loop()
 
     /* Pet the hw watchdog on start */
     pet_watchdog();
-    now = last_received = last_pet = timestamp_seconds();
+    now = last_heart_beat_time = last_wdt_pet_time = timestamp_seconds();
 
     max_fd = STDIN_FILENO;
 
     while (1) {
         FD_ZERO(&read_fds);         /* ZERO on each turn */
         FD_SET(STDIN_FILENO, &read_fds);
-        timeout.tv_sec = max(1, min(last_received + heart_beat_timeout - now, last_pet + wdt_pet_timeout - now));
+        timeout.tv_sec = max(1, min(last_heart_beat_time + heart_beat_timeout - now, last_wdt_pet_time + wdt_pet_timeout - now));
         timeout.tv_usec = 0;
+
         if ((i = select(max_fd + 1, &read_fds, NULLFDS, NULLFDS, &timeout)) < 0) {
             print_log("heart: select failed: %s", strerror(errno));
             return R_ERROR;
         }
 
         now = timestamp_seconds();
-        if (now >= last_received + heart_beat_timeout) {
+        if (now >= last_heart_beat_time + heart_beat_timeout) {
             print_log("heart: heartbeat timeout -> no activity for %lu seconds",
-                  (unsigned long) (now - last_received));
+                  (unsigned long) (now - last_heart_beat_time));
             return R_TIMEOUT;
         }
         /*
@@ -365,7 +372,7 @@ static int message_loop()
          */
         if (i == 0) {
             pet_watchdog();
-            last_pet = now;
+            last_wdt_pet_time = now;
             continue;
         }
         /*
@@ -382,7 +389,7 @@ static int message_loop()
                 switch (m.op) {
                 case HEART_BEAT:
                     pet_watchdog();
-                    last_pet = last_received = now;
+                    last_wdt_pet_time = last_heart_beat_time = now;
                     break;
                 case SHUT_DOWN:
                     return R_SHUT_DOWN;
@@ -411,10 +418,10 @@ static int message_loop()
                     break;
                 case GET_CMD:
                     /* Return information about heart */
-                    heart_cmd_info_reply();
+                    heart_cmd_info_reply(now);
                     break;
                 case PREPARING_CRASH:
-                    /* Erlang has reached a crushdump point (is crashing for sure) */
+                    /* Erlang has reached a crash dump point (is crashing for sure) */
                     print_log("heart: Erlang is crashing .. (waiting for crash dump file)");
                     return R_CRASHING;
                 default:
@@ -671,7 +678,7 @@ time_t timestamp_seconds()
     return ts.tv_sec;
 }
 
-static int heart_cmd_info_reply()
+static int heart_cmd_info_reply(time_t now)
 {
     struct msg m;
     struct watchdog_info info;
@@ -679,17 +686,20 @@ static int heart_cmd_info_reply()
     int ret;
     int flags;
 
+    int heartbeat_time_left = last_heart_beat_time + heart_beat_timeout - now;
+    int wdt_pet_time_left = last_wdt_pet_time + wdt_pet_timeout - now;
+
     /* The reply format is:
      *  <KEY>=<VALUE> NEWLINE
      *  ...
      */
-    p += sprintf(p, "program_name=" PROGRAM_NAME "\nprogram_version=" PROGRAM_VERSION_STR "\nheartbeat_timeout=%d\n", heart_beat_timeout);
+    p += sprintf(p, "program_name=" PROGRAM_NAME "\nprogram_version=" PROGRAM_VERSION_STR "\nheartbeat_timeout=%d\nheartbeat_time_left=%d\nwdt_pet_time_left=%d\n", heart_beat_timeout, heartbeat_time_left, wdt_pet_time_left);
 
     ret = ioctl(watchdog_fd, WDIOC_GETSUPPORT, &info);
     if (ret == 0) {
-        p += sprintf(p, "identity=%s\n", info.identity);
-        p += sprintf(p, "firmware_version=%u\n", info.firmware_version);
-        p += sprintf(p, "options=");
+        p += sprintf(p, "wdt_identity=%s\n", info.identity);
+        p += sprintf(p, "wdt_firmware_version=%u\n", info.firmware_version);
+        p += sprintf(p, "wdt_options=");
         if (info.options & WDIOF_OVERHEAT) p += sprintf(p, "overheat,");
         if (info.options & WDIOF_FANFAULT) p += sprintf(p, "fanfault,");
         if (info.options & WDIOF_EXTERN1) p += sprintf(p, "extern1,");
@@ -704,29 +714,29 @@ static int heart_cmd_info_reply()
         if (info.options & WDIOF_KEEPALIVEPING) p += sprintf(p, "keepaliveping,");
         p += sprintf(p, "\n");
     } else {
-        p += sprintf(p, "identity=none\nfirmware_version=0\noptions=\n");
+        p += sprintf(p, "wdt_identity=none\nwdt_firmware_version=0\nwdt_options=\n");
     }
 
     ret = ioctl(watchdog_fd, WDIOC_GETTIMELEFT, &flags);
     if (ret != 0)
         flags = 0;
-    p += sprintf(p, "time_left=%u\n", flags);
+    p += sprintf(p, "wdt_time_left=%u\n", flags);
 
     ret = ioctl(watchdog_fd, WDIOC_GETPRETIMEOUT, &flags);
     if (ret != 0)
         flags = 0;
-    p += sprintf(p, "pre_timeout=%u\n", flags);
+    p += sprintf(p, "wdt_pre_timeout=%u\n", flags);
 
     ret = ioctl(watchdog_fd, WDIOC_GETTIMEOUT, &flags);
     if (ret != 0)
         flags = 0;
-    p += sprintf(p, "timeout=%u\n", flags);
+    p += sprintf(p, "wdt_timeout=%u\n", flags);
 
     flags = 0;
     ret = ioctl(watchdog_fd, WDIOC_GETBOOTSTATUS, &flags);
     if (ret != 0)
         flags = 0;
-    p += sprintf(p, "last_boot=%s\n", (flags != 0 ? "watchdog" : "power_on"));
+    p += sprintf(p, "wdt_last_boot=%s\n", (flags != 0 ? "watchdog" : "power_on"));
 
     size_t len = p - (char *) m.fill;
     m.op = HEART_CMD;

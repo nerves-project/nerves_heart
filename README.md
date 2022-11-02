@@ -127,7 +127,7 @@ Here's an example run:
 ```elixir
 iex> :heart.get_cmd
 {:ok,
- 'program_name=nerves_heart\nprogram_version=1.1.0\nheartbeat_timeout=30\nidentity=OMAP Watchdog\nfirmware_version=0\noptions=settimeout,magicclose,keepaliveping,\ntime_left=117\npre_timeout=0\ntimeout=120\nlast_boot=power_on\n'}
+ 'program_name=nerves_heart\nprogram_version=2.0.0\nheartbeat_timeout=60\nheartbeat_time_left=53\nwdt_pet_time_left=103\nwdt_identity=OMAP Watchdog\nwdt_firmware_version=0\nwdt_options=settimeout,magicclose,keepaliveping,\nwdt_time_left=116\nwdt_pre_timeout=0\nwdt_timeout=120\nwdt_last_boot=power_on\n'}
 ```
 
 The format is "key=value\n". The keys are either from `nerves_heart` or from
@@ -138,16 +138,18 @@ If you're using Nerves, `Nerves.Runtime.Heart` has a friendlier interface:
 ```elixir
 iex> Nerves.Runtime.Heart.status!
 %{
-  firmware_version: 0,
-  heartbeat_timeout: 30,
-  identity: "OMAP Watchdog",
-  last_boot: :power_on,
-  options: [:settimeout, :magicclose, :keepaliveping],
-  pre_timeout: 0,
   program_name: "nerves_heart",
-  program_version: %Version{major: 1, minor: 1, patch: 0},
-  time_left: 116,
-  timeout: 120
+  program_version: %Version{major: 2, minor: 0, patch: 0},
+  heartbeat_timeout: 30,
+  heartbeat_time_left: 53,
+  wdt_identity: "OMAP Watchdog",
+  wdt_firmware_version: 0,
+  wdt_last_boot: :power_on,
+  wdt_options: [:settimeout, :magicclose, :keepaliveping],
+  wdt_pre_timeout: 0,
+  wdt_time_left: 116,
+  wdt_pet_time_left: 103,
+  wdt_timeout: 120
 }
 ```
 
@@ -157,14 +159,16 @@ The following table describes keys and their values:
 | --- | --------------------- |
 | `:program_name` | `"nerves_heart"` |
 | `:program_version` | Nerves heart's version number  |
-| `:identity` | The hardware watchdog that's being used  |
-| `:firmware_version` | An integer that represents the hardware watchdog's firmware revision  |
-| `:options` | Hardware watchdog options as reported by Linux  |
-| `:time_left` | How many seconds are left before the hardware watchdog triggers a reboot  |
-| `:pre_timeout` | How many seconds before the watchdog expires that Linux will receive a pre-timeout notification  |
-| `:timeout` | The hardware watchdog timeout. This is only changeable in the Linux configuration |
-| `:last_boot` | What caused the most recent boot. Whether this is reliable depends on the watchdog. |
 | `:heartbeat_timeout` | Erlang's heartbeat timeout setting. Note that the hardware watchdog timeout supersedes this since it reboots. |
+| `:heartbeat_time_left` | The amount of time left for Erlang to send a heartbeat message before heart times out. |
+| `:wdt_identity` | The hardware watchdog that's being used  |
+| `:wdt_firmware_version` | An integer that represents the hardware watchdog's firmware revision  |
+| `:wdt_last_boot` | What caused the most recent boot. Whether this is reliable depends on the watchdog. |
+| `:wdt_options` | Hardware watchdog options as reported by Linux  |
+| `:wdt_pre_timeout` | How many seconds before the watchdog expires that Linux will receive a pre-timeout notification  |
+| `:wdt_time_left` | How many seconds are left before the hardware watchdog triggers a reboot (depends on the kernel driver) |
+| `:wdt_timeout` | The hardware watchdog timeout. This is only changeable in the Linux configuration |
+| `:wdt_pet_time_left` | The time left before Nerves heart will pet the hardware WDT should everything remain ok |
 
 ## Testing
 

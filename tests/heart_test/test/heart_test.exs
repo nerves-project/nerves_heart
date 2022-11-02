@@ -118,13 +118,15 @@ defmodule HeartTestTest do
            program_name=nerves_heart
            program_version=1.2.0
            heartbeat_timeout=60
-           identity=OMAP Watchdog
-           firmware_version=0
-           options=settimeout,magicclose,keepaliveping,
-           time_left=116
-           pre_timeout=0
-           timeout=120
-           last_boot=power_on
+           heartbeat_time_left=60
+           wdt_pet_time_left=110
+           wdt_identity=OMAP Watchdog
+           wdt_firmware_version=0
+           wdt_options=settimeout,magicclose,keepaliveping,
+           wdt_time_left=116
+           wdt_pre_timeout=0
+           wdt_timeout=120
+           wdt_last_boot=power_on
            """
 
     graceful_shutdown(heart)
