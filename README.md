@@ -97,6 +97,23 @@ If you need to change the watchdog path, you can do this through an environment 
 -heart -env HEART_WATCHDOG_PATH /dev/watchdog1
 ```
 
+## Linux kernel configuration
+
+All official Nerves systems have Linux configured of Nerves Heart.
+
+Nerves Heart expects the kernel watchdog device driver to be enabled with the no
+way out option:
+
+```text
+CONFIG_WATCHDOG=y
+CONFIG_WATCHDOG_NOWAYOUT=y
+```
+
+Linux provides several hardware watchdog driver so select the option that
+matches your device. You may need to add a section to your device tree to
+configure the driver. For example, if using an external watchdog and petting it
+via a GPIO, you will need to specify which GPIO in the device tree.
+
 ## Runtime diagnostic information
 
 Both `nerves_heart` and the Linux watchdog subsystem can return useful
