@@ -300,6 +300,22 @@ static void get_arguments(int argc, char **argv)
     }
 }
 
+static void stop_petting_watchdog()
+{
+    // Stop petting of the hardware watchdog by forgetting the
+    // file handle and marking that there are no retries left to
+    // open it. Do not close the file handle since that might
+    // tell Linux to disable the watchdog if the kernel doesn't
+    // have CONFIG_WDT_NOWAYOUT=y.
+    watchdog_open_retries = 0;
+    watchdog_fd = -1;
+
+    // Set the pet timeout out really long so that if control
+    // ends up in the select loop, the WDT pet timeout won't
+    // exit select early.
+    wdt_pet_timeout = 86400;
+}
+
 int main(int argc, char **argv)
 {
     // See if we can log directly to the kernel log. If so, then use it for
@@ -387,21 +403,34 @@ static int message_loop()
                 case SHUT_DOWN:
                     return R_SHUT_DOWN;
                 case SET_CMD:
-                    /* If the user specifies "disable" or "disable_hw", turn off the hw watchdog petter to verify that the system reboots. */
                     if ((mp_len == 8 && memcmp(m.fill, "disable", 7) == 0) ||
                         (mp_len == 11 && memcmp(m.fill, "disable_hw", 10) == 0)) {
+                        /* If the user specifies "disable" or "disable_hw", turn off the hw watchdog
+                         * petter to verify that the system reboots.
+                         */
                         print_log("heart: Petting of the hardware watchdog is disabled. System should reboot momentarily.");
 
-                        /* Disable petting of the hardware watchdog */
-                        watchdog_open_retries = 0;
-                        watchdog_fd = -1;
-                    }
-                    /* If the user specifies "disable_vm", return like there was a timeout */
-                    if (mp_len == 11 && memcmp(m.fill, "disable_vm", 10) == 0) {
+                        stop_petting_watchdog();
+                    } else if (mp_len == 11 && memcmp(m.fill, "disable_vm", 10) == 0) {
+                        /* If the user specifies "disable_vm", return like there was a timeout */
                         print_log("heart: Forced heart process timeout. System should reboot momentarily.");
 
                         notify_ack();
                         return R_TIMEOUT;
+                    } else if (mp_len == 15 && memcmp(m.fill, "guarded_reboot", 14) == 0) {
+                        pet_watchdog();
+                        stop_petting_watchdog();
+                        kill(1, SIGTERM); // SIGTERM signals "reboot" to PID 1
+
+                        print_log("heart: reboot signaled. No longer petting the WDT");
+                        sync();
+                    } else if (mp_len == 17 && memcmp(m.fill, "guarded_poweroff", 16) == 0) {
+                        pet_watchdog();
+                        stop_petting_watchdog();
+                        kill(1, SIGUSR1); // SIGUSR1 signals "poweroff" to PID 1
+
+                        print_log("heart: poweroff signaled. No longer petting the WDT");
+                        sync();
                     }
                     notify_ack();
                     break;
