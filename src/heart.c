@@ -189,17 +189,18 @@ static int watchdog_fd = -1;
 
 static void print_log(const char *format, ...)
 {
+    char buffer[256];
+
     va_list ap;
     va_start(ap, format);
-
-    char buffer[256];
     int len = vsnprintf(buffer, sizeof(buffer) - 1, format, ap);
+    va_end(ap);
+
     if (len > 0) {
         buffer[len++] = '\n';
         int ignore = write(STDERR_FILENO, buffer, len);
         (void) ignore;
     }
-    va_end(ap);
 }
 
 static int is_env_set(char *key)

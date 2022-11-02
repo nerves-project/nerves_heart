@@ -65,8 +65,13 @@ static void flog(const char *format, ...)
 __attribute__((constructor)) void fixture_init()
 {
     char *report_path = getenv("HEART_REPORT_PATH");
-    open_tries = atoi(getenv("HEART_WATCHDOG_OPEN_TRIES"));
-    wdt_timeout = atoi(getenv("WDT_TIMEOUT"));
+    if (!report_path)
+        errx(EXIT_FAILURE, "Must specify HEART_REPORT_PATH");
+
+    char *open_tries_string = getenv("HEART_WATCHDOG_OPEN_TRIES");
+    open_tries = open_tries_string ? atoi(open_tries_string) : 0;
+    char *wdt_timeout_string = getenv("WDT_TIMEOUT");
+    wdt_timeout = wdt_timeout_string ? atoi(wdt_timeout_string) : 120;
 
     to_elixir_fd = socket(AF_UNIX, SOCK_DGRAM, 0);
     if (to_elixir_fd < 0)
