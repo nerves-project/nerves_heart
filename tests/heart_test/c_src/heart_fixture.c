@@ -59,9 +59,7 @@ static void flog(const char *format, ...)
     int count = vsnprintf(buffer, sizeof(buffer), format, ap);
     va_end(ap);
 
-    int rc = write(to_elixir_fd, buffer, count);
-    if (rc < 0)
-        err(EXIT_FAILURE, "fixture can't write logs to socket");
+    (void) write(to_elixir_fd, buffer, count);
 }
 
 __attribute__((constructor)) void fixture_init()
