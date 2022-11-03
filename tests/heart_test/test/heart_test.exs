@@ -116,7 +116,7 @@ defmodule HeartTestTest do
 
     assert cmd == """
            program_name=nerves_heart
-           program_version=1.2.0
+           program_version=2.0.0
            heartbeat_timeout=60
            heartbeat_time_left=60
            wdt_pet_time_left=110
