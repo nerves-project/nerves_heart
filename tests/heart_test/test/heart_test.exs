@@ -114,20 +114,23 @@ defmodule HeartTestTest do
 
     {:ok, {:heart_cmd, cmd}} = Heart.get_cmd(heart)
 
-    assert cmd == """
-           program_name=nerves_heart
-           program_version=2.0.0
-           heartbeat_timeout=60
-           heartbeat_time_left=60
-           wdt_pet_time_left=110
-           wdt_identity=OMAP Watchdog
-           wdt_firmware_version=0
-           wdt_options=settimeout,magicclose,keepaliveping,
-           wdt_time_left=116
-           wdt_pre_timeout=0
-           wdt_timeout=120
-           wdt_last_boot=power_on
-           """
+    assert cmd == %{
+             "heartbeat_time_left" => "60",
+             "heartbeat_timeout" => "60",
+             "init_handshake_happened" => "1",
+             "init_handshake_time_left" => "0",
+             "init_handshake_timeout" => "0",
+             "program_name" => "nerves_heart",
+             "program_version" => "2.0.0",
+             "wdt_firmware_version" => "0",
+             "wdt_identity" => "OMAP Watchdog",
+             "wdt_last_boot" => "power_on",
+             "wdt_options" => "settimeout,magicclose,keepaliveping,",
+             "wdt_pet_time_left" => "110",
+             "wdt_pre_timeout" => "0",
+             "wdt_time_left" => "116",
+             "wdt_timeout" => "120"
+           }
 
     graceful_shutdown(heart)
   end
@@ -275,5 +278,60 @@ defmodule HeartTestTest do
     # Run normal shutdown and check that there aren't any more WDT pets
     Heart.shutdown(heart)
     assert Heart.next_event(heart) == {:exit, 0}
+  end
+
+  test "application init handshake times out if not handshaked", context do
+    heart = start_supervised!({Heart, tmp_dir: context.tmp_dir, init_timeout: 5})
+    assert Heart.next_event(heart) == {:heart, :heart_ack}
+    assert Heart.next_event(heart) == {:event, "open(/dev/watchdog0) succeeded"}
+    assert Heart.next_event(heart) == {:event, "pet(1)"}
+
+    {:ok, {:heart_cmd, cmd}} = Heart.get_cmd(heart)
+
+    assert cmd["init_handshake_happened"] == "0"
+    assert cmd["init_handshake_timeout"] == "5"
+    assert cmd["init_handshake_time_left"] == "5"
+
+    Process.sleep(1000)
+
+    # Check that the time left changed. Don't be too picky here since there are
+    # some random CI/local delays which sometimes add more delay.
+    {:ok, {:heart_cmd, cmd}} = Heart.get_cmd(heart)
+    assert cmd["init_handshake_time_left"] == "4" or cmd["init_handshake_time_left"] == "3"
+
+    # No messages for 3 seconds
+    assert Heart.next_event(heart, 3000) == :timeout
+
+    # Capture reboot in about 1 second
+    assert Heart.next_event(heart, 1500) == {:event, "sync()"}
+    assert Heart.next_event(heart) == {:event, "reboot(0x01234567)"}
+    assert Heart.next_event(heart) == {:exit, 0}
+  end
+
+  test "application init handshake works", context do
+    heart = start_supervised!({Heart, tmp_dir: context.tmp_dir, init_timeout: 5})
+    assert Heart.next_event(heart) == {:heart, :heart_ack}
+    assert Heart.next_event(heart) == {:event, "open(/dev/watchdog0) succeeded"}
+    assert Heart.next_event(heart) == {:event, "pet(1)"}
+
+    {:ok, {:heart_cmd, cmd}} = Heart.get_cmd(heart)
+    assert cmd["init_handshake_happened"] == "0"
+    assert cmd["init_handshake_timeout"] == "5"
+    assert cmd["init_handshake_time_left"] == "5"
+
+    assert {:ok, :heart_ack} == Heart.set_cmd(heart, "init_handshake")
+
+    {:ok, {:heart_cmd, cmd}} = Heart.get_cmd(heart)
+    assert cmd["init_handshake_happened"] == "1"
+    assert cmd["init_handshake_timeout"] == "5"
+    assert cmd["init_handshake_time_left"] == "0"
+
+    # Init timer shouldn't expire
+    Process.sleep(5500)
+
+    # No messages means everything is ok.
+    assert Heart.next_event(heart, 500) == :timeout
+
+    graceful_shutdown(heart)
   end
 end

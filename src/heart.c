@@ -110,6 +110,7 @@
 #  define FD_ZERO(FD_SET_PTR) memset(FD_SET_PTR, 0, sizeof(fd_set))
 #endif
 
+#define HEART_INIT_TIMEOUT_ENV     "HEART_INIT_TIMEOUT"
 #define ERL_CRASH_DUMP_SECONDS_ENV "ERL_CRASH_DUMP_SECONDS"
 #define HEART_KILL_SIGNAL          "HEART_KILL_SIGNAL"
 #define HEART_WATCHDOG_PATH        "HEART_WATCHDOG_PATH"
@@ -159,6 +160,15 @@ static int wdt_timeout = 60;
 
 /* last_wdt_pet_time is the absolute time that hardware watchdog was pet */
 static time_t last_wdt_pet_time = 0;
+
+/* Timeout on receiving a handshake message from the application that the heart callback was set. 0=unused */
+static time_t init_handshake_timeout = 0;
+
+/* Set to 1 if the initialization handshake message came in */
+static int init_handshake_happened = 0;
+
+/* If !init_handshake_happened, then this is the end time */
+static time_t init_handshake_end_time = 0;
 
 /* All current platforms have a process identifier that
    fits in an unsigned long and where 0 is an impossible or invalid value */
@@ -348,6 +358,15 @@ int main(int argc, char **argv)
 
     print_log("heart: " PROGRAM_NAME " v" PROGRAM_VERSION_STR " started.");
 
+    // Assume that the handshake happened and this fixes it if a timeout was specified
+    init_handshake_happened = 1;
+    if (is_env_set(HEART_INIT_TIMEOUT_ENV)) {
+        const char *init_tmo_env = get_env(HEART_INIT_TIMEOUT_ENV);
+        init_handshake_timeout = atoi(init_tmo_env);
+        if (init_handshake_timeout > 0)
+            init_handshake_happened = 0;
+    }
+
     get_arguments(argc, argv);
     notify_ack();
 
@@ -375,6 +394,7 @@ static int message_loop()
     /* Pet the hw watchdog on start */
     pet_watchdog();
     now = last_heart_beat_time = last_wdt_pet_time = timestamp_seconds();
+    init_handshake_end_time = now + init_handshake_timeout;
 
     max_fd = STDIN_FILENO;
 
@@ -383,6 +403,9 @@ static int message_loop()
         FD_SET(STDIN_FILENO, &read_fds);
         timeout.tv_sec = max(1, min(last_heart_beat_time + heart_beat_timeout - now, last_wdt_pet_time + wdt_pet_timeout - now));
         timeout.tv_usec = 0;
+
+        if (!init_handshake_happened)
+            timeout.tv_sec = min(timeout.tv_sec, init_handshake_end_time - now);
 
         if ((i = select(max_fd + 1, &read_fds, NULLFDS, NULLFDS, &timeout)) < 0) {
             print_log("heart: select failed: %s", strerror(errno));
@@ -395,6 +418,13 @@ static int message_loop()
                   (unsigned long) (now - last_heart_beat_time));
             return R_TIMEOUT;
         }
+
+        if (!init_handshake_happened && now >= init_handshake_end_time) {
+            print_log("heart: init handshake never happened -> not received in %lu seconds",
+                  (unsigned long) init_handshake_timeout);
+            return R_TIMEOUT;
+        }
+
         /*
          * Do not check fd-bits if select timeout
          */
@@ -450,6 +480,9 @@ static int message_loop()
 
                         print_log("heart: poweroff signaled. No longer petting the WDT");
                         sync();
+                    } else if (mp_len == 15 && memcmp(m.fill, "init_handshake", 14) == 0) {
+                        /* Application has said that it's completed initialization */
+                        init_handshake_happened = 1;
                     }
                     notify_ack();
                     break;
@@ -729,12 +762,23 @@ static int heart_cmd_info_reply(time_t now)
 
     int heartbeat_time_left = last_heart_beat_time + heart_beat_timeout - now;
     int wdt_pet_time_left = last_wdt_pet_time + wdt_pet_timeout - now;
+    int init_handshake_time_left = init_handshake_end_time - now;
+    if (init_handshake_happened || init_handshake_time_left < 0)
+        init_handshake_time_left = 0;
 
     /* The reply format is:
      *  <KEY>=<VALUE> NEWLINE
      *  ...
      */
-    p += sprintf(p, "program_name=" PROGRAM_NAME "\nprogram_version=" PROGRAM_VERSION_STR "\nheartbeat_timeout=%d\nheartbeat_time_left=%d\nwdt_pet_time_left=%d\n", heart_beat_timeout, heartbeat_time_left, wdt_pet_time_left);
+    p += sprintf(p, "program_name=" PROGRAM_NAME "\nprogram_version=" PROGRAM_VERSION_STR "\n"
+        "heartbeat_timeout=%d\n"
+        "heartbeat_time_left=%d\n"
+        "wdt_pet_time_left=%d\n"
+        "init_handshake_happened=%d\n"
+        "init_handshake_timeout=%d\n"
+        "init_handshake_time_left=%d\n",
+        heart_beat_timeout, heartbeat_time_left, wdt_pet_time_left,
+        init_handshake_happened, (int) init_handshake_timeout, init_handshake_time_left);
 
     ret = ioctl(watchdog_fd, WDIOC_GETSUPPORT, &info);
     if (ret == 0) {

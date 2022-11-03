@@ -83,6 +83,8 @@ defmodule Heart do
     open_tries = init_args[:open_tries] || 0
     watchdog_path = init_args[:watchdog_path]
     wdt_timeout = init_args[:wdt_timeout] || 120
+    crash_dump_seconds = init_args[:crash_dump_seconds]
+    init_timeout = init_args[:init_timeout]
 
     watchdog_path_env =
       if watchdog_path do
@@ -98,11 +100,16 @@ defmodule Heart do
         []
       end
 
-    crash_dump_seconds = init_args[:crash_dump_seconds]
-
     crash_dump_seconds_env =
       if crash_dump_seconds do
         [{~c"ERL_CRASH_DUMP_SECONDS", ~c"#{crash_dump_seconds}"}]
+      else
+        []
+      end
+
+    init_timeout_env =
+      if init_timeout do
+        [{~c"HEART_INIT_TIMEOUT", ~c"#{init_timeout}"}]
       else
         []
       end
@@ -127,7 +134,7 @@ defmodule Heart do
              {~c"DYLD_INSERT_LIBRARIES", c_shim},
              {~c"HEART_REPORT_PATH", to_charlist(reports)},
              {~c"HEART_WATCHDOG_OPEN_TRIES", to_charlist(open_tries)}
-           ] ++ watchdog_path_env ++ crash_dump_seconds_env ++ wdt_timeout_env},
+           ] ++ watchdog_path_env ++ crash_dump_seconds_env ++ wdt_timeout_env ++ init_timeout_env},
           :exit_status
         ]
       )
@@ -217,7 +224,17 @@ defmodule Heart do
   end
 
   defp decode_response(<<@heart_ack>>), do: :heart_ack
-  defp decode_response(<<@heart_cmd, data::binary>>), do: {:heart_cmd, data}
+
+  defp decode_response(<<@heart_cmd, data::binary>>) do
+    stats =
+      data
+      |> String.split("\n", trim: true)
+      |> Enum.map(&String.split(&1, "=", parts: 2))
+      |> Enum.map(fn [x, y] -> {x, y} end)
+      |> Map.new()
+
+    {:heart_cmd, stats}
+  end
 
   defp open_backend_socket(socket_path) do
     # Blindly try to remove an old file just in case it exists from a previous run

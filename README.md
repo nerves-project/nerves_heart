@@ -22,6 +22,9 @@ implementation and provides the following changes:
    Erlang is unresponsive. The reboot call is not configurable nor is it
    necessary to invoke another program.
 5. Trigger watchdog-protected reboots and shutdowns
+6. Support for an application-level initialization handshake. This lets your
+   application guard against conditions that cause Erlang and Nerves Heart to
+   think that everything is ok when it's not. See discussion below.
 
 ## Timeouts and semantics
 
@@ -115,6 +118,47 @@ matches your device. You may need to add a section to your device tree to
 configure the driver. For example, if using an external watchdog and petting it
 via a GPIO, you will need to specify which GPIO in the device tree.
 
+## Application-level initialization handshake
+
+Erlang's `heart` module has a very useful feature of letting you specify a
+callback to extend the heart beat protection beyond the VM. See
+[:heart.set_callback/2](https://www.erlang.org/doc/man/heart.html#set_callback-2).
+To use it, you specify a callback function that returns `:ok` if your
+application seems is ok. If it's not ok, then Erlang won't send a heart beat
+message to the heart process and the device will eventually reboot.
+
+The problem with this mechanism is that if something causes the code that
+registers the callback to not be run, the device could continue to run without
+knowing that its in a bad state. As an aside, a non-Nerves way of handling this
+would be to exit the VM with an error message. On devices, running in a degraded
+state can be useful to keep important services going and allowing time for
+remote troubleshooting.
+
+Here's the flow for using the application-level initialization handshake:
+
+1. Set the `HEART_INIT_TIMEOUT` environment variable to the number of seconds to
+   wait for the initializing handshake.
+2. Call `:heart.set_callback/2` in your program
+3. Run `:heart.setcmd('init_done')`
+
+To set `HEART_INIT_TIMEOUT`, edit the `rel/vm.args.eex` and update the heart
+section to look like this:
+
+```sh
+## Enable heartbeat monitoring of the Erlang runtime system
+-heart -env HEART_BEAT_TIMEOUT 30
+
+## Require an initialization handshake within 15 minutes
+-heart -env HEART_INIT_TIMEOUT 900
+```
+
+With this configuration, Nerves Heart will operate as normal with petting the
+hardware watchdog and expecting Erlang heart beat messages up. If `init_done` is
+passed, Nerves Heart will continue working as normal. However, if `init_done` is
+not sent at the 15 minute mark, Nerves Heart will pet the hardware WDT one last
+time and exit. This will cause the Erlang VM to exit and if the VM decides to
+not be happy about this, the hardware WDT will reset.
+
 ## Runtime diagnostic information
 
 Both `nerves_heart` and the Linux watchdog subsystem can return useful
@@ -143,6 +187,9 @@ iex> Nerves.Runtime.Heart.status!
   program_version: %Version{major: 2, minor: 0, patch: 0},
   heartbeat_timeout: 30,
   heartbeat_time_left: 53,
+  init_handshake_happened: true,
+  init_handshake_timeout: 900,
+  init_handshake_time_left: 0,
   wdt_identity: "OMAP Watchdog",
   wdt_firmware_version: 0,
   wdt_last_boot: :power_on,
@@ -162,6 +209,9 @@ The following table describes keys and their values:
 | `:program_version` | Nerves heart's version number  |
 | `:heartbeat_timeout` | Erlang's heartbeat timeout setting. Note that the hardware watchdog timeout supersedes this since it reboots. |
 | `:heartbeat_time_left` | The amount of time left for Erlang to send a heartbeat message before heart times out. |
+| `:init_handshake_happened` | `true` if the initialization handshake happened or isn't enabled |
+| `:init_handshake_timeout` | The time to wait for the handshake message before timing out |
+| `:init_handshake_time_left` | If waiting for an initialization handshake, this is the number of seconds left. |
 | `:wdt_identity` | The hardware watchdog that's being used  |
 | `:wdt_firmware_version` | An integer that represents the hardware watchdog's firmware revision  |
 | `:wdt_last_boot` | What caused the most recent boot. Whether this is reliable depends on the watchdog. |
