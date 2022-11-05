@@ -114,6 +114,7 @@
 #define HEART_KILL_SIGNAL          "HEART_KILL_SIGNAL"
 #define HEART_WATCHDOG_PATH        "HEART_WATCHDOG_PATH"
 #define HEART_NO_KILL              "HEART_NO_KILL"
+#define HEART_SILENT               "HEART_SILENT"
 
 #define MSG_HDR_SIZE         (2)
 #define MSG_HDR_PLUS_OP_SIZE (3)
@@ -193,8 +194,37 @@ static char * const watchdog_path_default = "/dev/watchdog0";
 static int watchdog_open_retries = 10;
 static int watchdog_fd = -1;
 
+static int is_env_set(char *key)
+{
+    return getenv(key) != NULL;
+}
+
+static char *get_env(char *key)
+{
+    return getenv(key);
+}
+
+static void open_log()
+{
+    if (is_env_set(HEART_SILENT))
+        return;
+
+    // See if we can log directly to the kernel log. If so, then use it for
+    // warnings and errors since that will get them to the Elixir logger via
+    // Nerves.Runtime or give them the best chance of being seen if everything
+    // else is broke.
+    int log_fd = open("/dev/kmsg", O_WRONLY | O_CLOEXEC);
+    if (log_fd >= 0) {
+        dup2(log_fd, STDERR_FILENO);
+        close(log_fd);
+    }
+}
+
 static void print_log(const char *format, ...)
 {
+    if (is_env_set(HEART_SILENT))
+        return;
+
     char buffer[256];
 
     va_list ap;
@@ -207,16 +237,6 @@ static void print_log(const char *format, ...)
         int ignore = write(STDERR_FILENO, buffer, len);
         (void) ignore;
     }
-}
-
-static int is_env_set(char *key)
-{
-    return getenv(key) != NULL;
-}
-
-static char *get_env(char *key)
-{
-    return getenv(key);
 }
 
 static void try_open_watchdog()
@@ -324,15 +344,7 @@ static void stop_petting_watchdog()
 
 int main(int argc, char **argv)
 {
-    // See if we can log directly to the kernel log. If so, then use it for
-    // warnings and errors since that will get them to the Elixir logger via
-    // Nerves.Runtime or give them the best chance of being seen if everything
-    // else is broke.
-    int log_fd = open("/dev/kmsg", O_WRONLY | O_CLOEXEC);
-    if (log_fd >= 0) {
-        dup2(log_fd, STDERR_FILENO);
-        close(log_fd);
-    }
+    open_log();
 
     print_log("heart: " PROGRAM_NAME " v" PROGRAM_VERSION_STR " started.");
 
