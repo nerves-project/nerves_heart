@@ -63,16 +63,6 @@ defmodule Heart do
     send_message(server, <<@preparing_crash>>)
   end
 
-  @doc """
-  Wait timeout milliseconds for the next event
-
-  This is written trivial and only one caller process is supported at a time.
-  """
-  @spec next_event(GenServer.server(), non_neg_integer()) :: event() | :timeout
-  def next_event(server, timeout \\ 1000) do
-    GenServer.call(server, {:next_event, timeout}, timeout + 500)
-  end
-
   @impl GenServer
   def init(init_args) do
     shim = Application.app_dir(:heart_test, ["priv", "heart_fixture.so"]) |> Path.expand()
@@ -144,8 +134,7 @@ defmodule Heart do
        heart: heart_port,
        backend: backend_socket,
        requests: :queue.new(),
-       events: :queue.new(),
-       waiter: nil
+       notifications: init_args[:notifications]
      }}
   end
 
@@ -160,17 +149,6 @@ defmodule Heart do
     Port.command(state.heart, data)
 
     {:noreply, %{state | requests: :queue.in(from, state.requests)}}
-  end
-
-  def handle_call({:next_event, timeout}, from, state) do
-    case :queue.out(state.events) do
-      {{:value, event}, new_events} ->
-        {:reply, event, %{state | events: new_events}}
-
-      {:empty, _calls} ->
-        timer_ref = Process.send_after(self(), {:timeout, from}, timeout)
-        {:noreply, %{state | waiter: {from, timer_ref}}}
-    end
   end
 
   @impl GenServer
@@ -195,32 +173,14 @@ defmodule Heart do
     {:noreply, process_event(state, {:event, data})}
   end
 
-  def handle_info({:timeout, client}, %{waiter: {client, _timer_ref}} = state) do
-    GenServer.reply(client, :timeout)
-    {:noreply, %{state | waiter: nil}}
-  end
-
-  def handle_info({:timeout, _client}, state) do
-    # Ignore stale timeout
-    {:noreply, state}
-  end
-
   def handle_info(message, state) do
     IO.puts("Got unexpected data #{inspect(message)}")
     {:noreply, state}
   end
 
   defp process_event(state, event) do
-    if state.waiter do
-      {client, timer_ref} = state.waiter
-
-      GenServer.reply(client, event)
-      _ = Process.cancel_timer(timer_ref)
-
-      %{state | waiter: nil}
-    else
-      %{state | events: :queue.in(event, state.events)}
-    end
+    send(state.notifications, event)
+    state
   end
 
   defp decode_response(<<@heart_ack>>), do: :heart_ack
