@@ -263,7 +263,7 @@ static void pet_watchdog()
 {
     try_open_watchdog();
 
-    if (write(watchdog_fd, "\0", 1) < 0)
+    if (watchdog_fd >= 0 && write(watchdog_fd, "\0", 1) < 0)
         print_log("heart: error petting watchdog: %s", strerror(errno));
 }
 
