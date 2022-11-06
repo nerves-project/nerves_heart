@@ -1,5 +1,22 @@
 # Changelog
 
+## v2.0.0
+
+This is a major update to Nerves Heart.
+
+* Changes
+  * BREAKING: the informational attribute names changed to clarify whether they
+    came from the watchdog timer device driver or Nerves heart
+  * Added an optional initialization handshake to protect against
+    `:heart.set_callback/2` not being run and an issue going undetected.
+  * Added support for guarded reboot and poweroff requests. These work similar
+    to the `reboot` and `poweroff` shell commands, but stop petting the watchdog
+    as well. This protects against rare reboot/poweroff hangs.
+  * Pet the hardware watchdog before exiting to reduce the chance of it
+    rebooting the system early due to unlucky timing from the previous pet.
+  * Remove hardcoded hardware watchdog pet time and calculate based on actual
+    timeout value.
+
 ## v1.2.0
 
 This is a significant update since it adds a regression test framework.
