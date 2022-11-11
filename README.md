@@ -89,7 +89,8 @@ the interval that `heart` pets the hardware watchdog. The default for Erlang is
 60 seconds. If this is too long, update your `rel/vm.args` like follows:
 
 ```erlang
--heart -env HEART_BEAT_TIMEOUT 30
+-heart
+-env HEART_BEAT_TIMEOUT 30
 ```
 
 The heart beat timeout has to be greater than 10 seconds per the Erlang
@@ -98,7 +99,7 @@ documentation.
 If you need to change the watchdog path, you can do this through an environment variable.
 
 ```erlang
--heart -env HEART_WATCHDOG_PATH /dev/watchdog1
+-env HEART_WATCHDOG_PATH /dev/watchdog1
 ```
 
 ## Linux kernel configuration
@@ -146,10 +147,11 @@ section to look like this:
 
 ```sh
 ## Enable heartbeat monitoring of the Erlang runtime system
--heart -env HEART_BEAT_TIMEOUT 30
+-heart
+-env HEART_BEAT_TIMEOUT 30
 
 ## Require an initialization handshake within 15 minutes
--heart -env HEART_INIT_TIMEOUT 900
+-env HEART_INIT_TIMEOUT 900
 ```
 
 With this configuration, Nerves Heart will operate as normal with petting the
@@ -185,7 +187,7 @@ iex> Nerves.Runtime.Heart.status!
 %{
   program_name: "nerves_heart",
   program_version: %Version{major: 2, minor: 0, patch: 0},
-  heartbeat_timeout: 30,
+  heartbeat_timeout: 60,
   heartbeat_time_left: 53,
   init_handshake_happened: true,
   init_handshake_timeout: 900,
