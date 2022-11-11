@@ -142,13 +142,15 @@ struct msg {
 /*  Maybe interesting to change */
 
 /* Times in seconds */
-#define  DEFAULT_WDT_PET_TIMEOUT    5  /* Every 5 seconds we reset the watchdog timer */
-#define  WDT_PET_TIMEOUT_BUFFER     10 /* Pet the watchdog 10 seconds before it would expire */
+#define  DEFAULT_HEART_BEAT_TIMEOUT 60 /* Expect a message at least every 60 seconds from Erlang. */
+#define  DEFAULT_WDT_TIMEOUT        10
+#define  WDT_PET_TIMEOUT_BUFFER     10 /* Pet the watchdog 10 seconds before it would expire (or half its timeout) */
+#define  DEFAULT_WDT_PET_TIMEOUT    (DEFAULT_WDT_TIMEOUT / 2)
 static int wdt_pet_timeout = DEFAULT_WDT_PET_TIMEOUT;
 
 /* heart_beat_timeout is the maximum gap in seconds between two
    consecutive heart beat messages from Erlang. */
-static int heart_beat_timeout = 60;
+static int heart_beat_timeout = DEFAULT_HEART_BEAT_TIMEOUT;
 
 /* last_heart_beat_time is the absolute time that the previous heart beat was received */
 static time_t last_heart_beat_time = 0;
@@ -156,7 +158,7 @@ static time_t last_heart_beat_time = 0;
 /* wdt_timeout is the maximum gap in seconds between two consecutive heart beat
  * messages before the hardware watchdog times out.
  */
-static int wdt_timeout = 60;
+static int wdt_timeout = DEFAULT_WDT_TIMEOUT;
 
 /* last_wdt_pet_time is the absolute time that hardware watchdog was pet */
 static time_t last_wdt_pet_time = 0;
@@ -252,49 +254,61 @@ static void print_log(const char *format, ...)
 static void try_open_watchdog()
 {
     /* The watchdog device sometimes takes a bit to appear, so give it a few tries. */
-    if (watchdog_fd < 0) {
-        if (watchdog_open_retries <= 0)
-            return;
+    if (watchdog_fd >= 0)
+       return;
 
-        char *watchdog_path = get_env(HEART_WATCHDOG_PATH);
-        if (watchdog_path == NULL) {
-            watchdog_path = watchdog_path_default;
+    if (watchdog_open_retries <= 0)
+       return;
+
+    char *watchdog_path = get_env(HEART_WATCHDOG_PATH);
+    if (watchdog_path == NULL)
+        watchdog_path = watchdog_path_default;
+
+    watchdog_fd = open(watchdog_path, O_WRONLY);
+    if (watchdog_fd >= 0) {
+        int real_wdt_timeout;
+        int ret;
+
+        ret = ioctl(watchdog_fd, WDIOC_GETTIMEOUT, &real_wdt_timeout);
+        if (ret == 0 && real_wdt_timeout >= 5) {
+            wdt_timeout = real_wdt_timeout;
+            /* Most of the time, pet WDT_PET_TIMEOUT_BUFFER seconds before the timeout,
+             * but if it's really short, then pet half the timeout.
+             */
+            if (real_wdt_timeout > 2*WDT_PET_TIMEOUT_BUFFER)
+                wdt_pet_timeout = real_wdt_timeout - WDT_PET_TIMEOUT_BUFFER;
+            else
+                wdt_pet_timeout = real_wdt_timeout / 2;
+        } else if (ret != 0) {
+            print_log("heart: error or too short WDT timeout so using defaults!");
         }
-        watchdog_fd = open(watchdog_path, O_WRONLY);
-        if (watchdog_fd > 0) {
-            int real_wdt_timeout;
-            int ret;
 
-            ret = ioctl(watchdog_fd, WDIOC_GETTIMEOUT, &real_wdt_timeout);
-            if (ret == 0 && real_wdt_timeout >= 5) {
-                wdt_timeout = real_wdt_timeout;
-                /* Most of the time, pet WDT_PET_TIMEOUT_BUFFER seconds before the timeout,
-                 * but if it's really short, then pet half the timeout.
-                 */
-                if (real_wdt_timeout > 2*WDT_PET_TIMEOUT_BUFFER)
-                    wdt_pet_timeout = real_wdt_timeout - WDT_PET_TIMEOUT_BUFFER;
-                else
-                    wdt_pet_timeout = real_wdt_timeout / 2;
-            } else if (ret != 0) {
-                print_log("heart: error or too short WDT timeout so using defaults!");
-            }
-
-            print_log("heart: kernel watchdog activated. WDT timeout %ds, WDT pet interval %ds, VM timeout %ds", wdt_timeout, wdt_pet_timeout, heart_beat_timeout);
-        } else {
-            watchdog_open_retries--;
-            if (watchdog_open_retries <= 0)
-                print_log("heart: can't open '%s'. Running without kernel watchdog: %s", watchdog_path, strerror(errno));
-            return;
+        print_log("heart: kernel watchdog activated. WDT timeout %ds, WDT pet interval %ds, VM timeout %ds", wdt_timeout, wdt_pet_timeout, heart_beat_timeout);
+    } else {
+        watchdog_open_retries--;
+        if (watchdog_open_retries <= 0) {
+            print_log("heart: can't open '%s'. Running without kernel watchdog: %s", watchdog_path, strerror(errno));
+            wdt_timeout = wdt_pet_timeout = 60*60*24*365;
         }
+        return;
     }
 }
 
-static void pet_watchdog()
+static void pet_watchdog(time_t now)
 {
     try_open_watchdog();
 
-    if (watchdog_fd >= 0 && write(watchdog_fd, "\0", 1) < 0)
-        print_log("heart: error petting watchdog: %s", strerror(errno));
+    if (watchdog_fd >= 0) {
+        if (write(watchdog_fd, "\0", 1) >= 0) {
+            last_wdt_pet_time = now;
+        } else {
+            print_log("heart: error petting watchdog: %s", strerror(errno));
+
+            // Retry next time if there is a next time.
+            close(watchdog_fd);
+            watchdog_fd = -1;
+        }
+    }
 }
 
 /*
@@ -391,10 +405,12 @@ static int message_loop()
     int   tlen;           /* total message length */
     struct msg m;
 
-    /* Pet the hw watchdog on start */
-    pet_watchdog();
+    // Initialize timestamps
     now = last_heart_beat_time = last_wdt_pet_time = timestamp_seconds();
     init_handshake_end_time = now + init_handshake_timeout;
+
+    // Pet the hw watchdog on start since we don't know how long it has been
+    pet_watchdog(now);
 
     max_fd = STDIN_FILENO;
 
@@ -429,8 +445,7 @@ static int message_loop()
          * Do not check fd-bits if select timeout
          */
         if (i == 0) {
-            pet_watchdog();
-            last_wdt_pet_time = now;
+            pet_watchdog(now);
             continue;
         }
         /*
@@ -446,8 +461,8 @@ static int message_loop()
 
                 switch (m.op) {
                 case HEART_BEAT:
-                    pet_watchdog();
-                    last_wdt_pet_time = last_heart_beat_time = now;
+                    pet_watchdog(now);
+                    last_heart_beat_time = now;
                     break;
                 case SHUT_DOWN:
                     return R_SHUT_DOWN;
@@ -467,14 +482,14 @@ static int message_loop()
                         notify_ack();
                         return R_TIMEOUT;
                     } else if (mp_len == 15 && memcmp(m.fill, "guarded_reboot", 14) == 0) {
-                        pet_watchdog();
+                        pet_watchdog(now);
                         stop_petting_watchdog();
                         kill(1, SIGTERM); // SIGTERM signals "reboot" to PID 1
 
                         print_log("heart: reboot signaled. No longer petting the WDT");
                         sync();
                     } else if (mp_len == 17 && memcmp(m.fill, "guarded_poweroff", 16) == 0) {
-                        pet_watchdog();
+                        pet_watchdog(now);
                         stop_petting_watchdog();
                         kill(1, SIGUSR1); // SIGUSR1 signals "poweroff" to PID 1
 
@@ -562,11 +577,11 @@ do_terminate(int reason)
     switch (reason) {
     case R_SHUT_DOWN:
         // Pet watchdog to give remainder of graceful shutdown code time to run
-        pet_watchdog();
+        pet_watchdog(0);
         break;
     case R_CRASHING:
         // Pet watchdog to avoid unintended WDT reset during crash
-        pet_watchdog();
+        pet_watchdog(0);
         if (is_env_set(ERL_CRASH_DUMP_SECONDS_ENV)) {
             const char *tmo_env = get_env(ERL_CRASH_DUMP_SECONDS_ENV);
             int tmo = atoi(tmo_env);
@@ -812,10 +827,7 @@ static int heart_cmd_info_reply(time_t now)
         flags = 0;
     p += sprintf(p, "wdt_pre_timeout=%u\n", flags);
 
-    ret = ioctl(watchdog_fd, WDIOC_GETTIMEOUT, &flags);
-    if (ret != 0)
-        flags = 0;
-    p += sprintf(p, "wdt_timeout=%u\n", flags);
+    p += sprintf(p, "wdt_timeout=%u\n", wdt_timeout);
 
     flags = 0;
     ret = ioctl(watchdog_fd, WDIOC_GETBOOTSTATUS, &flags);
