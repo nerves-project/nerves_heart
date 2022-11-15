@@ -140,7 +140,9 @@ Here's the flow for using the application-level initialization handshake:
 1. Set the `HEART_INIT_TIMEOUT` environment variable to the number of seconds to
    wait for the initializing handshake.
 2. Call `:heart.set_callback/2` in your program
-3. Run `:heart.setcmd('init_done')`
+3. Call `Nerves.Runtime.Heart.init_complete/0` or `:heart.setcmd('init_done')`.
+   If you call the latter, be sure to do it in a different process than the
+   your heart callback uses or you'll get a hang.
 
 To set `HEART_INIT_TIMEOUT`, edit the `rel/vm.args.eex` and update the heart
 section to look like this:
@@ -253,6 +255,10 @@ or
 ```elixir
 iex> :heart.set_cmd("guarded_poweroff")
 ```
+
+IMPORTANT: `nerves_runtime` v0.13.2 and later makes these calls for you when
+running `Nerves.Runtime.reboot/0` and `Nerves.Runtime.poweroff/0` if it detects
+that this feature is supported.
 
 Nerves Heart will notify PID 1 of the intention to reboot or poweroff. However,
 the WDT will be pet for the last time. You should then call either
