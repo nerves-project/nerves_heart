@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.0.1
+
+* Changes
+  * Fix last wdt pet time statistic when the wdt isn't available. This only
+    changes the value reported. Previously, the pet time was updated on all
+    attempts even if they were unsuccessful.
+
 ## v2.0.0
 
 This is a major update to Nerves Heart.
