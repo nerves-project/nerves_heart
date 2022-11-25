@@ -491,7 +491,7 @@ static int message_loop()
                     } else if (mp_len == 17 && memcmp(m.fill, "guarded_poweroff", 16) == 0) {
                         pet_watchdog(now);
                         stop_petting_watchdog();
-                        kill(1, SIGUSR1); // SIGUSR1 signals "poweroff" to PID 1
+                        kill(1, SIGUSR2); // SIGUSR2 signals "poweroff" to PID 1
 
                         print_log("heart: poweroff signaled. No longer petting the WDT");
                         sync();

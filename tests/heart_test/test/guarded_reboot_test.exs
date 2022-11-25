@@ -42,8 +42,8 @@ defmodule GuardedRebootTest do
     # Final WDT pet
     assert_receive {:event, "pet(1)"}
 
-    # Tell PID 1 to reboot
-    assert_receive {:event, "kill(1, SIGUSR1)"}
+    # Tell PID 1 to poweroff
+    assert_receive {:event, "kill(1, SIGUSR2)"}
 
     # Proactive sync
     assert_receive {:event, "sync()"}
