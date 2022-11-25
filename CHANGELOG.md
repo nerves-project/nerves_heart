@@ -1,5 +1,11 @@
 # Changelog
 
+## v2.0.2
+
+* Changes
+  * Fix signal sent for guarded poweroffs
+  * Support guarded halts (oversight from v2.0.0)
+
 ## v2.0.1
 
 * Changes
