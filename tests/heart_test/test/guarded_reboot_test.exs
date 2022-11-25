@@ -54,4 +54,28 @@ defmodule GuardedRebootTest do
     Heart.shutdown(heart)
     assert_receive {:exit, 0}
   end
+
+  test "guarded halt", context do
+    heart = start_supervised!({Heart, context.init_args})
+    assert_receive {:heart, :heart_ack}
+    assert_receive {:event, "open(/dev/watchdog0) succeeded"}
+    assert_receive {:event, "pet(1)"}
+
+    {:ok, :heart_ack} = Heart.set_cmd(heart, "guarded_halt")
+
+    # Final WDT pet
+    assert_receive {:event, "pet(1)"}
+
+    # Tell PID 1 to halt
+    assert_receive {:event, "kill(1, SIGUSR1)"}
+
+    # Proactive sync
+    assert_receive {:event, "sync()"}
+
+    Process.sleep(6)
+
+    # Run normal shutdown and check that there aren't any more WDT pets
+    Heart.shutdown(heart)
+    assert_receive {:exit, 0}
+  end
 end

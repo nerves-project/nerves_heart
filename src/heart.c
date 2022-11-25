@@ -495,6 +495,13 @@ static int message_loop()
 
                         print_log("heart: poweroff signaled. No longer petting the WDT");
                         sync();
+                    } else if (mp_len == 13 && memcmp(m.fill, "guarded_halt", 12) == 0) {
+                        pet_watchdog(now);
+                        stop_petting_watchdog();
+                        kill(1, SIGUSR1); // SIGUSR1 signals "halt" to PID 1
+
+                        print_log("heart: halt signaled. No longer petting the WDT");
+                        sync();
                     } else if (mp_len == 15 && memcmp(m.fill, "init_handshake", 14) == 0) {
                         /* Application has said that it's completed initialization */
                         init_handshake_happened = 1;
