@@ -26,7 +26,7 @@ defmodule StatusTest do
              "init_handshake_time_left" => "0",
              "init_handshake_timeout" => "0",
              "program_name" => "nerves_heart",
-             "program_version" => "2.0.2",
+             "program_version" => "2.1.0",
              "wdt_firmware_version" => "0",
              "wdt_identity" => "OMAP Watchdog",
              "wdt_last_boot" => "power_on",

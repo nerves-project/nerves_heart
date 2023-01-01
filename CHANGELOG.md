@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.1.0
+
+* Changes
+  * Add `HEART_VERBOSE` environment variable for controlling logging output. The
+    default (`1`) is to only log errors and important messages. `2` will output
+    informational messages and `0` silences everything.
+
 ## v2.0.2
 
 * Changes
