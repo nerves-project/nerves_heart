@@ -1,4 +1,5 @@
-/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
+// SPDX-FileCopyrightText: Unknown
+// SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note
 /*
  *	Generic watchdog defines. Derived from..
  *

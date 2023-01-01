@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2022 Nerves Project Developers
+//
+// SPDX-License-Identifier: Apache-2.0
+
 #define _GNU_SOURCE // for RTLD_NEXT
 #include <stdio.h>
 #include <dlfcn.h>

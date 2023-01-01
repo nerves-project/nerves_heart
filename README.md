@@ -301,3 +301,21 @@ reason, set `HEART_VERBOSE` to `0`:
 ```erlang
 -env HEART_VERBOSE 0
 ```
+
+## License
+
+This production code in this project is Erlang/OTP's `heart.c` with custom
+modifications for use with Nerves.  This file is licensed under Apache-2.0.
+Without additional modification, no other license is used.
+
+This project does contain source with other licenses including GPL-2.0-only.
+Files containing these licenses are clearly marked as required by the [REUSE
+recommendations](https://reuse.software).
+
+Exceptions to Apache-2.0 licensing are:
+
+* Configuration and data files are licensed under CC0-1.0
+* Documentation is CC-BY-4.0
+* Linux kernel headers for MacOS development are GPL-2.0-only with the Linux
+  syscall note.
+

@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2022 Nerves Project Developers
+#
+# SPDX-License-Identifier: Apache-2.0
+
 ExUnit.start()
 
 # Set to 1 or 2 to get log messages from Nerves heart

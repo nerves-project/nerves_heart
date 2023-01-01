@@ -1,3 +1,5 @@
+// SPDX-FileCopyrightText: Unknown
+// SPDX-License-Identifier: GPL-2.0-only WITH Linux-syscall-note
 #ifndef _LINUX_REBOOT_H
 #define _LINUX_REBOOT_H
 

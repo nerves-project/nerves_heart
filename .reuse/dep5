@@ -1,0 +1,20 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: nerves_heart
+Upstream-Contact: Frank Hunleth <fhunleth@troodon-software.com>
+Source: https://github.com/nerves-project/nerves_heart
+
+Files: README.md CHANGELOG.md
+Copyright: 2020 Nerves Project Developers
+License: CC-BY-4.0
+
+Files: .gitignore .circleci/config.yml tests/heart_test/.gitignore
+Copyright: None
+License: CC0-1.0
+
+Files: Makefile
+Copyright: None
+License: CC0-1.0
+
+Files: tests/heart_test/.formatter.exs tests/heart_test/mix.exs tests/heart_test/README.md
+Copyright: None
+License: CC0-1.0

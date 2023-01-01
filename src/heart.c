@@ -1,3 +1,8 @@
+// SPDX-FileCopyrightText: 1996-2020 Ericsson AB. All Rights Reserved.
+// SPDX-FileCopyrightText: 2022 Nerves Project Developers
+//
+// SPDX-License-Identifier: Apache-2.0
+
 /*
  * %CopyrightBegin%
  *

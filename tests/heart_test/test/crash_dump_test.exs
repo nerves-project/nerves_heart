@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2022 Nerves Project Developers
+#
+# SPDX-License-Identifier: Apache-2.0
+
 defmodule CrashDumpTest do
   use ExUnit.Case, async: true
 
