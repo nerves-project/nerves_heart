@@ -4,7 +4,7 @@ EXTRA_CFLAGS=-Wall -Wextra -DPROGRAM_VERSION=$(VERSION)
 
 ifeq ($(shell uname),Darwin)
 EXTRA_CFLAGS+=-Isrc/compat
-EXTRA_SRC=src/compat/compat.c
+EXTRA_SRC=
 endif
 
 all: heart
