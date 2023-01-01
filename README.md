@@ -283,3 +283,21 @@ on the VM by running:
 ```elixir
 iex> :heart.set_cmd("disable_vm")
 ```
+
+## Debugging
+
+Nerves Heart writes to the kernel's logger to aid debug if something unexpected
+happens.  Only errors are logged by default. If you'd like informational
+messages as well, set the `HEART_VERBOSE` environment variable in your
+`vm.args.eex`:
+
+```erlang
+-env HEART_VERBOSE 2
+```
+
+If you want Nerves Heart to be completely stealth in its prints for some
+reason, set `HEART_VERBOSE` to `0`:
+
+```erlang
+-env HEART_VERBOSE 0
+```

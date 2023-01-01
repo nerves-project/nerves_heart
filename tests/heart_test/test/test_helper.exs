@@ -1,7 +1,7 @@
 ExUnit.start()
 
-# Comment out to get log messages from Nerves heart
-System.put_env("HEART_SILENT", "1")
+# Set to 1 or 2 to get log messages from Nerves heart
+System.put_env("HEART_VERBOSE", "0")
 
 defmodule HeartTestCommon do
   use ExUnit.Case

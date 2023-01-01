@@ -115,7 +115,7 @@
 #define HEART_KILL_SIGNAL          "HEART_KILL_SIGNAL"
 #define HEART_WATCHDOG_PATH        "HEART_WATCHDOG_PATH"
 #define HEART_NO_KILL              "HEART_NO_KILL"
-#define HEART_SILENT               "HEART_SILENT"
+#define HEART_VERBOSE              "HEART_VERBOSE"
 
 #define MSG_HDR_SIZE         (2)
 #define MSG_HDR_PLUS_OP_SIZE (3)
@@ -205,6 +205,7 @@ static int  wait_until_close_write_or_env_tmo(int);
 static char * const watchdog_path_default = "/dev/watchdog0";
 static int watchdog_open_retries = 10;
 static int watchdog_fd = -1;
+static int verbose = 1; // 0 = no prints, 1 = important prints, 2 = informational prints
 
 static int is_env_set(char *key)
 {
@@ -216,10 +217,14 @@ static char *get_env(char *key)
     return getenv(key);
 }
 
+#define LOG_INFO(FORMAT, ...) do { if (verbose > 1) print_log(FORMAT, ## __VA_ARGS__); } while(0)
+#define LOG_ERROR(FORMAT, ...) do { if (verbose > 0) print_log(FORMAT, ## __VA_ARGS__); } while(0)
+
 static void open_log()
 {
-    if (is_env_set(HEART_SILENT))
-        return;
+    const char *verbose_value = get_env(HEART_VERBOSE);
+    if (verbose_value)
+	verbose = atoi(verbose_value);
 
     // See if we can log directly to the kernel log. If so, then use it for
     // warnings and errors since that will get them to the Elixir logger via
@@ -234,9 +239,6 @@ static void open_log()
 
 static void print_log(const char *format, ...)
 {
-    if (is_env_set(HEART_SILENT))
-        return;
-
     char buffer[256];
 
     va_list ap;
@@ -280,14 +282,14 @@ static void try_open_watchdog()
             else
                 wdt_pet_timeout = real_wdt_timeout / 2;
         } else if (ret != 0) {
-            print_log("heart: error or too short WDT timeout so using defaults!");
+            LOG_ERROR("heart: error or too short WDT timeout so using defaults!");
         }
 
-        print_log("heart: kernel watchdog activated. WDT timeout %ds, WDT pet interval %ds, VM timeout %ds", wdt_timeout, wdt_pet_timeout, heart_beat_timeout);
+        LOG_INFO("heart: kernel watchdog activated. WDT timeout %ds, WDT pet interval %ds, VM timeout %ds", wdt_timeout, wdt_pet_timeout, heart_beat_timeout);
     } else {
         watchdog_open_retries--;
         if (watchdog_open_retries <= 0) {
-            print_log("heart: can't open '%s'. Running without kernel watchdog: %s", watchdog_path, strerror(errno));
+            LOG_ERROR("heart: can't open '%s'. Running without kernel watchdog: %s", watchdog_path, strerror(errno));
             wdt_timeout = wdt_pet_timeout = 60*60*24*365;
         }
         return;
@@ -302,7 +304,7 @@ static void pet_watchdog(time_t now)
         if (write(watchdog_fd, "\0", 1) >= 0) {
             last_wdt_pet_time = now;
         } else {
-            print_log("heart: error petting watchdog: %s", strerror(errno));
+            LOG_ERROR("heart: error petting watchdog: %s", strerror(errno));
 
             // Retry next time if there is a next time.
             close(watchdog_fd);
@@ -370,7 +372,7 @@ int main(int argc, char **argv)
 {
     open_log();
 
-    print_log("heart: " PROGRAM_NAME " v" PROGRAM_VERSION_STR " started.");
+    LOG_INFO("heart: " PROGRAM_NAME " v" PROGRAM_VERSION_STR " started.");
 
     // Assume that the handshake happened and this fixes it if a timeout was specified
     init_handshake_happened = 1;
@@ -424,19 +426,19 @@ static int message_loop()
             timeout.tv_sec = min(timeout.tv_sec, init_handshake_end_time - now);
 
         if ((i = select(max_fd + 1, &read_fds, NULLFDS, NULLFDS, &timeout)) < 0) {
-            print_log("heart: select failed: %s", strerror(errno));
+            LOG_ERROR("heart: select failed: %s", strerror(errno));
             return R_ERROR;
         }
 
         now = timestamp_seconds();
         if (now >= last_heart_beat_time + heart_beat_timeout) {
-            print_log("heart: heartbeat timeout -> no activity for %lu seconds",
+            LOG_ERROR("heart: heartbeat timeout -> no activity for %lu seconds",
                   (unsigned long) (now - last_heart_beat_time));
             return R_TIMEOUT;
         }
 
         if (!init_handshake_happened && now >= init_handshake_end_time) {
-            print_log("heart: init handshake never happened -> not received in %lu seconds",
+            LOG_ERROR("heart: init handshake never happened -> not received in %lu seconds",
                   (unsigned long) init_handshake_timeout);
             return R_TIMEOUT;
         }
@@ -453,7 +455,7 @@ static int message_loop()
          */
         if (FD_ISSET(STDIN_FILENO, &read_fds)) {
             if ((tlen = read_message(STDIN_FILENO, &m)) < 0) {
-                print_log("heart: error from read_message:  %s", strerror(errno));
+                LOG_ERROR("heart: error from read_message:  %s", strerror(errno));
                 return R_ERROR;
             }
             if ((tlen > MSG_HDR_SIZE) && (tlen <= MSG_TOTAL_SIZE)) {
@@ -472,12 +474,12 @@ static int message_loop()
                         /* If the user specifies "disable" or "disable_hw", turn off the hw watchdog
                          * petter to verify that the system reboots.
                          */
-                        print_log("heart: Petting of the hardware watchdog is disabled. System should reboot momentarily.");
+                        LOG_ERROR("heart: Petting of the hardware watchdog is disabled. System should reboot momentarily.");
 
                         stop_petting_watchdog();
                     } else if (mp_len == 11 && memcmp(m.fill, "disable_vm", 10) == 0) {
                         /* If the user specifies "disable_vm", return like there was a timeout */
-                        print_log("heart: Forced heart process timeout. System should reboot momentarily.");
+                        LOG_ERROR("heart: Forced heart process timeout. System should reboot momentarily.");
 
                         notify_ack();
                         return R_TIMEOUT;
@@ -486,21 +488,21 @@ static int message_loop()
                         stop_petting_watchdog();
                         kill(1, SIGTERM); // SIGTERM signals "reboot" to PID 1
 
-                        print_log("heart: reboot signaled. No longer petting the WDT");
+                        LOG_ERROR("heart: reboot signaled. No longer petting the WDT");
                         sync();
                     } else if (mp_len == 17 && memcmp(m.fill, "guarded_poweroff", 16) == 0) {
                         pet_watchdog(now);
                         stop_petting_watchdog();
                         kill(1, SIGUSR2); // SIGUSR2 signals "poweroff" to PID 1
 
-                        print_log("heart: poweroff signaled. No longer petting the WDT");
+                        LOG_ERROR("heart: poweroff signaled. No longer petting the WDT");
                         sync();
                     } else if (mp_len == 13 && memcmp(m.fill, "guarded_halt", 12) == 0) {
                         pet_watchdog(now);
                         stop_petting_watchdog();
                         kill(1, SIGUSR1); // SIGUSR1 signals "halt" to PID 1
 
-                        print_log("heart: halt signaled. No longer petting the WDT");
+                        LOG_ERROR("heart: halt signaled. No longer petting the WDT");
                         sync();
                     } else if (mp_len == 15 && memcmp(m.fill, "init_handshake", 14) == 0) {
                         /* Application has said that it's completed initialization */
@@ -518,7 +520,7 @@ static int message_loop()
                     break;
                 case PREPARING_CRASH:
                     /* Erlang has reached a crash dump point (is crashing for sure) */
-                    print_log("heart: Erlang is crashing .. (waiting for crash dump file)");
+                    LOG_ERROR("heart: Erlang is crashing .. (waiting for crash dump file)");
                     return R_CRASHING;
                 default:
                     /* ignore all other messages */
@@ -526,7 +528,7 @@ static int message_loop()
                 }
             } else if (tlen == 0) {
                 /* Erlang has closed its end */
-                print_log("heart: Erlang has closed.");
+                LOG_ERROR("heart: Erlang has closed.");
                 return R_CLOSED;
             }
             /* Junk erroneous messages */
@@ -547,19 +549,19 @@ kill_old_erlang(int reason)
 
     if (heart_beat_kill_pid != 0) {
         if (reason == R_CLOSED) {
-            print_log("heart: Wait 5 seconds for Erlang to terminate nicely");
+            LOG_INFO("heart: Wait 5 seconds for Erlang to terminate nicely");
             for (i=0; i < 5; ++i) {
                res = kill(heart_beat_kill_pid, 0); /* check if alive */
                if (res < 0 && errno == ESRCH)
                   return;
               sleep(1);
             }
-           print_log("heart: Erlang still alive, kill it");
+           LOG_ERROR("heart: Erlang still alive, kill it");
         }
 
         envvar = get_env(HEART_KILL_SIGNAL);
         if (envvar && strcmp(envvar, "SIGABRT") == 0) {
-            print_log("heart: kill signal SIGABRT requested");
+            LOG_ERROR("heart: kill signal SIGABRT requested");
             sig = SIGABRT;
         }
 
@@ -569,7 +571,7 @@ kill_old_erlang(int reason)
             res = kill(heart_beat_kill_pid, sig);
         }
         if (errno != ESRCH) {
-            print_log("heart: Unable to kill old process, "
+            LOG_ERROR("heart: Unable to kill old process, "
                  "kill failed (tried multiple times):  %s", strerror(errno));
         }
     }
@@ -592,7 +594,7 @@ do_terminate(int reason)
         if (is_env_set(ERL_CRASH_DUMP_SECONDS_ENV)) {
             const char *tmo_env = get_env(ERL_CRASH_DUMP_SECONDS_ENV);
             int tmo = atoi(tmo_env);
-            print_log("heart: waiting for dump - timeout set to %d seconds.", tmo);
+            LOG_ERROR("heart: waiting for dump - timeout set to %d seconds.", tmo);
             wait_until_close_write_or_env_tmo(tmo);
         }
     /* fall through */
@@ -632,7 +634,7 @@ int wait_until_close_write_or_env_tmo(int tmo)
     FD_ZERO(&read_fds);
     FD_SET(STDIN_FILENO, &read_fds);
     if ((i = select(max_fd + 1, &read_fds, NULLFDS, NULLFDS, tptr)) < 0) {
-        print_log("heart: select failed:  %s", strerror(errno));
+        LOG_ERROR("heart: select failed:  %s", strerror(errno));
         return -1;
     }
     return i;
@@ -767,7 +769,7 @@ time_t timestamp_seconds()
 {
     struct timespec ts;
     if (clock_gettime(CLOCK_MONOTONIC, &ts) != 0) {
-        print_log("heart: fatal, could not get clock_monotonic value, terminating! %s", strerror(errno));
+        LOG_ERROR("heart: fatal, could not get clock_monotonic value, terminating! %s", strerror(errno));
         exit(EXIT_FAILURE);
     }
 
