@@ -14,8 +14,7 @@ defmodule HeartTest.MixProject do
       deps: deps(),
       dialyzer: dialyzer(),
       preferred_cli_env: %{
-        dialyzer: :dev,
-        credo: :dev
+        dialyzer: :dev
       }
     ]
   end
@@ -30,8 +29,7 @@ defmodule HeartTest.MixProject do
   defp deps do
     [
       {:elixir_make, "~> 0.6", runtime: false},
-      {:dialyxir, "~> 1.2", only: :dev, runtime: false},
-      {:credo, "~> 1.2", only: :dev, runtime: false}
+      {:dialyxir, "~> 1.2", only: :dev, runtime: false}
     ]
   end
 
