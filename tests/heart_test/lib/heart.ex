@@ -79,41 +79,41 @@ defmodule Heart do
     wdt_timeout = init_args[:wdt_timeout] || 120
     crash_dump_seconds = init_args[:crash_dump_seconds]
     init_timeout = init_args[:init_timeout]
-
-    watchdog_path_env =
-      if watchdog_path do
-        [{~c"HEART_WATCHDOG_PATH", to_charlist(watchdog_path)}]
-      else
-        []
-      end
-
-    # WDT_TIMEOUT is handled by the test fixture for what to return from the simulated hardware wdt
-    wdt_timeout_env =
-      if wdt_timeout do
-        [{~c"WDT_TIMEOUT", ~c"#{wdt_timeout}"}]
-      else
-        []
-      end
-
-    crash_dump_seconds_env =
-      if crash_dump_seconds do
-        [{~c"ERL_CRASH_DUMP_SECONDS", ~c"#{crash_dump_seconds}"}]
-      else
-        []
-      end
-
-    init_timeout_env =
-      if init_timeout do
-        [{~c"HEART_INIT_TIMEOUT", ~c"#{init_timeout}"}]
-      else
-        []
-      end
+    min_run_time = init_args[:min_run_time]
 
     File.exists?(shim) || raise "Can't find heart_fixture.so"
     File.exists?(heart) || raise "Can't find heart"
     File.exists?(tmp_dir) || raise "Can't find #{inspect(tmp_dir)}"
 
     c_shim = shim |> to_charlist()
+
+    env =
+      [
+        if watchdog_path do
+          {~c"HEART_WATCHDOG_PATH", to_charlist(watchdog_path)}
+        end,
+        # WDT_TIMEOUT is handled by the test fixture for what to return from the simulated hardware wdt
+        if wdt_timeout do
+          {~c"WDT_TIMEOUT", ~c"#{wdt_timeout}"}
+        end,
+        if crash_dump_seconds do
+          {~c"ERL_CRASH_DUMP_SECONDS", ~c"#{crash_dump_seconds}"}
+        end,
+        if init_timeout do
+          {~c"HEART_INIT_TIMEOUT", ~c"#{init_timeout}"}
+        end,
+        if init_timeout do
+          {~c"HEART_INIT_TIMEOUT", ~c"#{init_timeout}"}
+        end,
+        if min_run_time do
+          {~c"HEART_MIN_RUN_TIME", ~c"#{min_run_time}"}
+        end,
+        {~c"LD_PRELOAD", c_shim},
+        {~c"DYLD_INSERT_LIBRARIES", c_shim},
+        {~c"HEART_REPORT_PATH", to_charlist(reports)},
+        {~c"HEART_WATCHDOG_OPEN_TRIES", to_charlist(open_tries)}
+      ]
+      |> Enum.filter(&Function.identity/1)
 
     backend_socket = open_backend_socket(reports)
 
@@ -123,13 +123,7 @@ defmodule Heart do
         [
           {:args, ["-ht", "#{heart_beat_timeout}"]},
           {:packet, 2},
-          {:env,
-           [
-             {~c"LD_PRELOAD", c_shim},
-             {~c"DYLD_INSERT_LIBRARIES", c_shim},
-             {~c"HEART_REPORT_PATH", to_charlist(reports)},
-             {~c"HEART_WATCHDOG_OPEN_TRIES", to_charlist(open_tries)}
-           ] ++ watchdog_path_env ++ crash_dump_seconds_env ++ wdt_timeout_env ++ init_timeout_env},
+          {:env, env},
           :exit_status
         ]
       )

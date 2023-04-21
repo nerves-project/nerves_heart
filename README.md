@@ -107,13 +107,14 @@ The following table shows the environment variables that affect Nerves Heart:
 
 | Variable                 | Description |
 | ------------------------ | ----------- |
-| `ERL_CRASH_DUMP_SECONDS` | Timeout in seconds to wait for Erlang to exit
+| `ERL_CRASH_DUMP_SECONDS` | Timeout in seconds to wait for Erlang to exit |
 | `HEART_BEAT_TIMEOUT`     | Used by Erlang to start `heart`. Erlang promises to pet `heart` before this timeout. |
-| `HEART_INIT_TIMEOUT`     | If set, require an init handshake message before the timeout
-| `HEART_KILL_SIGNAL`      | Set to "SIGABRT" to send `SIGABRT` rather than `SIGKILL`
-| `HEART_NO_KILL`          | If "TRUE", don't try to kill Erlang before exiting
-| `HEART_VERBOSE`          | "0" turns off logging, "1" is error logs only, "2" is everything
-| `HEART_WATCHDOG_PATH`    | Path to hardware watchdog. Defaults to `"/dev/watchdog0"`
+| `HEART_INIT_TIMEOUT`     | If set, require an init handshake message before the timeout |
+| `HEART_KILL_SIGNAL`      | Set to "SIGABRT" to send `SIGABRT` rather than `SIGKILL` |
+| `HEART_NO_KILL`          | If "TRUE", don't try to kill Erlang before exiting |
+| `HEART_VERBOSE`          | "0" turns off logging, "1" is error logs only, "2" is everything |
+| `HEART_WATCHDOG_PATH`    | Path to hardware watchdog. Defaults to `"/dev/watchdog0"` |
+| `HEART_MIN_RUN_TIME`     | Minimum amount of time to let Erlang run on start. E.g., if set to 120, then `heart` will pet the watchdog automatically and not reboot regardless of what Erlang does. |
 
 ## Linux kernel configuration
 

@@ -116,6 +116,7 @@
 #endif
 
 #define HEART_INIT_TIMEOUT_ENV     "HEART_INIT_TIMEOUT"
+#define HEART_MIN_RUN_TIME_ENV     "HEART_MIN_RUN_TIME"
 #define ERL_CRASH_DUMP_SECONDS_ENV "ERL_CRASH_DUMP_SECONDS"
 #define HEART_KILL_SIGNAL          "HEART_KILL_SIGNAL"
 #define HEART_WATCHDOG_PATH        "HEART_WATCHDOG_PATH"
@@ -153,6 +154,8 @@ struct msg {
 #define  DEFAULT_WDT_PET_TIMEOUT    (DEFAULT_WDT_TIMEOUT / 2)
 #define  MIN_WDT_PET_TIMEOUT        2 /* Limited by pet timer's resolution in seconds */
 #define  MAX_WDT_PET_TIMEOUT        120
+#define  MIN_RUN_TIME               60
+#define  MAX_MIN_RUN_TIME           600 /* Don't allow the heart to be disabled indefinitely */
 
 static int wdt_pet_timeout = DEFAULT_WDT_PET_TIMEOUT;
 
@@ -179,6 +182,12 @@ static int init_handshake_happened = 0;
 
 /* If !init_handshake_happened, then this is the end time */
 static time_t init_handshake_end_time = 0;
+
+/* Keep the system running for this many seconds from the start */
+static time_t min_run_time = 0;
+
+/* End timestamp for not crashing the system on an issue */
+static time_t min_run_end_time = 0;
 
 /* All current platforms have a process identifier that
    fits in an unsigned long and where 0 is an impossible or invalid value */
@@ -293,7 +302,7 @@ static void try_open_watchdog()
             LOG_ERROR("heart: error or too short WDT timeout so using defaults!");
         }
 
-        LOG_INFO("heart: kernel watchdog activated. WDT timeout %ds, WDT pet interval %ds, VM timeout %ds", wdt_timeout, wdt_pet_timeout, heart_beat_timeout);
+        LOG_INFO("heart: kernel watchdog activated. WDT timeout %ds, WDT pet interval %ds, VM timeout %ds, min run time %ds", wdt_timeout, wdt_pet_timeout, heart_beat_timeout, min_run_time);
     } else {
         watchdog_open_retries--;
         if (watchdog_open_retries <= 0) {
@@ -390,6 +399,20 @@ int main(int argc, char **argv)
         if (init_handshake_timeout > 0)
             init_handshake_happened = 0;
     }
+    if (is_env_set(HEART_MIN_RUN_TIME_ENV)) {
+        const char *min_run_time_env = get_env(HEART_MIN_RUN_TIME_ENV);
+        min_run_time = atoi(min_run_time_env);
+        if (min_run_time < 0)
+            min_run_time = 0;
+        else if (min_run_time > MAX_MIN_RUN_TIME)
+            min_run_time = MAX_MIN_RUN_TIME;
+
+        // Check that the initialization handshake timeout, if any, doesn't
+        // come before the min run time and introduce another way to exit too
+        // soon.
+        if (init_handshake_timeout > 0 && init_handshake_timeout < min_run_time)
+            init_handshake_timeout = min_run_time;
+    }
 
     get_arguments(argc, argv);
     notify_ack();
@@ -419,6 +442,8 @@ static int message_loop()
     // Initialize timestamps
     now = last_heart_beat_time = last_wdt_pet_time = end_snooze = timestamp_seconds();
     init_handshake_end_time = now + init_handshake_timeout;
+    min_run_end_time = now + min_run_time;
+    last_heart_beat_time = min_run_end_time;
 
     // Pet the hw watchdog on start since we don't know how long it has been
     pet_watchdog(now);
@@ -441,13 +466,6 @@ static int message_loop()
 
         now = timestamp_seconds();
 
-        if (now < end_snooze) {
-            // If snoozing, unconditionally pet the hardware watchdog and record
-            // that it happened.
-            pet_watchdog(now);
-            last_heart_beat_time = now;
-        }
-
         if (now >= last_heart_beat_time + heart_beat_timeout) {
             LOG_ERROR("heart: heartbeat timeout -> no activity for %lu seconds",
                   (unsigned long) (now - last_heart_beat_time));
@@ -467,6 +485,12 @@ static int message_loop()
             pet_watchdog(now);
             continue;
         }
+
+        if (now < end_snooze || now < min_run_end_time) {
+            // If snoozing or keeping the device alive for a minimum amount of time, unconditionally pet the hardware watchdog.
+            pet_watchdog(now);
+        }
+
         /*
          * Message from ERLANG
          */
@@ -481,7 +505,8 @@ static int message_loop()
                 switch (m.op) {
                 case HEART_BEAT:
                     pet_watchdog(now);
-                    last_heart_beat_time = now;
+                    if (last_heart_beat_time < now)
+                        last_heart_beat_time = now;
                     break;
                 case SHUT_DOWN:
                     return R_SHUT_DOWN;
