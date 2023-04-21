@@ -76,7 +76,7 @@ defmodule Heart do
     heart_beat_timeout = init_args[:heart_beat_timeout] || 60
     open_tries = init_args[:open_tries] || 0
     watchdog_path = init_args[:watchdog_path]
-    wdt_timeout = init_args[:wdt_timeout] || 120
+    wdt_timeout = init_args[:wdt_timeout]
     crash_dump_seconds = init_args[:crash_dump_seconds]
     init_timeout = init_args[:init_timeout]
 
@@ -89,7 +89,7 @@ defmodule Heart do
 
     wdt_timeout_env =
       if wdt_timeout do
-        [{~c"WDT_TIMEOUT", ~c"#{wdt_timeout}"}]
+        [{~c"HEART_WATCHDOG_TIMEOUT", ~c"#{wdt_timeout}"}]
       else
         []
       end

@@ -121,6 +121,7 @@
 #define HEART_WATCHDOG_PATH        "HEART_WATCHDOG_PATH"
 #define HEART_NO_KILL              "HEART_NO_KILL"
 #define HEART_VERBOSE              "HEART_VERBOSE"
+#define HEART_WATCHDOG_TIMEOUT     "HEART_WATCHDOG_TIMEOUT"
 
 #define MSG_HDR_SIZE         (2)
 #define MSG_HDR_PLUS_OP_SIZE (3)
@@ -149,6 +150,8 @@ struct msg {
 /* Times in seconds */
 #define  DEFAULT_HEART_BEAT_TIMEOUT 60 /* Expect a message at least every 60 seconds from Erlang. */
 #define  DEFAULT_WDT_TIMEOUT        10
+#define  MAX_WDT_TIMEOUT            120
+#define  MIN_WDT_TIMEOUT            2  /* Timer resolution currently is 1 second, so need buffer */
 #define  WDT_PET_TIMEOUT_BUFFER     10 /* Pet the watchdog 10 seconds before it would expire (or half its timeout) */
 #define  DEFAULT_WDT_PET_TIMEOUT    (DEFAULT_WDT_TIMEOUT / 2)
 static int wdt_pet_timeout = DEFAULT_WDT_PET_TIMEOUT;
@@ -273,22 +276,32 @@ static void try_open_watchdog()
 
     watchdog_fd = open(watchdog_path, O_WRONLY);
     if (watchdog_fd >= 0) {
-        int real_wdt_timeout;
-        int ret;
-
-        ret = ioctl(watchdog_fd, WDIOC_GETTIMEOUT, &real_wdt_timeout);
-        if (ret == 0 && real_wdt_timeout >= 5) {
-            wdt_timeout = real_wdt_timeout;
-            /* Most of the time, pet WDT_PET_TIMEOUT_BUFFER seconds before the timeout,
-             * but if it's really short, then pet half the timeout.
-             */
-            if (real_wdt_timeout > 2*WDT_PET_TIMEOUT_BUFFER)
-                wdt_pet_timeout = real_wdt_timeout - WDT_PET_TIMEOUT_BUFFER;
-            else
-                wdt_pet_timeout = real_wdt_timeout / 2;
-        } else if (ret != 0) {
-            LOG_ERROR("heart: error or too short WDT timeout so using defaults!");
+        char *overridden_wdt_timeout = get_env(HEART_WATCHDOG_TIMEOUT);
+        if (overridden_wdt_timeout) {
+            wdt_timeout = strtoul(overridden_wdt_timeout, NULL, 0);
+        } else {
+            int real_wdt_timeout;
+            int ret = ioctl(watchdog_fd, WDIOC_GETTIMEOUT, &real_wdt_timeout);
+            if (ret == 0 && real_wdt_timeout >= MIN_WDT_TIMEOUT) {
+                wdt_timeout = real_wdt_timeout;
+            } else if (ret != 0) {
+                LOG_ERROR("heart: error or too short WDT timeout so using defaults!");
+            }
         }
+
+        /* Sanity check WDT timeout duration */
+        if (wdt_timeout < MIN_WDT_TIMEOUT)
+            wdt_timeout = MIN_WDT_TIMEOUT;
+        if (wdt_timeout > MAX_WDT_TIMEOUT)
+            wdt_timeout = MAX_WDT_TIMEOUT;
+
+        /* Most of the time, pet WDT_PET_TIMEOUT_BUFFER seconds before the timeout,
+        * but if it's really short, then pet half the timeout.
+        */
+        if (wdt_timeout > 2*WDT_PET_TIMEOUT_BUFFER)
+            wdt_pet_timeout = wdt_timeout - WDT_PET_TIMEOUT_BUFFER;
+        else
+            wdt_pet_timeout = wdt_timeout / 2;
 
         LOG_INFO("heart: kernel watchdog activated. WDT timeout %ds, WDT pet interval %ds, VM timeout %ds", wdt_timeout, wdt_pet_timeout, heart_beat_timeout);
     } else {
