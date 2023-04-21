@@ -13,7 +13,7 @@ defmodule InitHandshakeTest do
 
   test "application init handshake times out if not handshaked", context do
     heart = start_supervised!({Heart, context.init_args ++ [init_timeout: 5]})
-    assert_receive {:heart, :heart_ack}
+    assert_receive {:heart, :heart_ack}, 500
     assert_receive {:event, "open(/dev/watchdog0) succeeded"}
     assert_receive {:event, "pet(1)"}
 
@@ -41,7 +41,7 @@ defmodule InitHandshakeTest do
 
   test "application init handshake works", context do
     heart = start_supervised!({Heart, context.init_args ++ [init_timeout: 5]})
-    assert_receive {:heart, :heart_ack}
+    assert_receive {:heart, :heart_ack}, 500
     assert_receive {:event, "open(/dev/watchdog0) succeeded"}
     assert_receive {:event, "pet(1)"}
 

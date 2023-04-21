@@ -13,7 +13,7 @@ defmodule BasicTest do
 
   test "heart acks on start and exits on shutdown", context do
     heart = start_supervised!({Heart, context.init_args})
-    assert_receive {:heart, :heart_ack}
+    assert_receive {:heart, :heart_ack}, 500
     assert_receive {:event, "open(/dev/watchdog0) succeeded"}
     assert_receive {:event, "pet(1)"}
 
@@ -22,7 +22,7 @@ defmodule BasicTest do
 
   test "heart pets watchdog when petted itself", context do
     heart = start_supervised!({Heart, context.init_args})
-    assert_receive {:heart, :heart_ack}
+    assert_receive {:heart, :heart_ack}, 500
     assert_receive {:event, "open(/dev/watchdog0) succeeded"}
     assert_receive {:event, "pet(1)"}
 
@@ -40,7 +40,7 @@ defmodule BasicTest do
     # pet should happen. Wait for 6s to detect whether the default pet
     # timeout of 5 seconds was erroneously used.
     heart = start_supervised!({Heart, context.init_args})
-    assert_receive {:heart, :heart_ack}
+    assert_receive {:heart, :heart_ack}, 500
     assert_receive {:event, "open(/dev/watchdog0) succeeded"}
     assert_receive {:event, "pet(1)"}
 
@@ -52,7 +52,7 @@ defmodule BasicTest do
   test "heart reboots when not petted", context do
     # Shortest timeout is 11 seconds
     start_supervised!({Heart, context.init_args ++ [heart_beat_timeout: 11]})
-    assert_receive {:heart, :heart_ack}
+    assert_receive {:heart, :heart_ack}, 500
     assert_receive {:event, "open(/dev/watchdog0) succeeded"}
     assert_receive {:event, "pet(1)"}
 

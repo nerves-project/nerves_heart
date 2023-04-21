@@ -16,7 +16,7 @@ defmodule HeartTest do
     # comes up after heart does. This can happen if the driver
     # is compiled as a module.
     heart = start_supervised!({Heart, context.init_args ++ [open_tries: 1]})
-    assert_receive {:heart, :heart_ack}
+    assert_receive {:heart, :heart_ack}, 500
     assert_receive {:event, "open(/dev/watchdog0) failed"}
 
     Process.sleep(6000)

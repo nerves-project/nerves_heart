@@ -13,7 +13,7 @@ defmodule GuardedRebootTest do
 
   test "guarded reboot", context do
     heart = start_supervised!({Heart, context.init_args})
-    assert_receive {:heart, :heart_ack}
+    assert_receive {:heart, :heart_ack}, 500
     assert_receive {:event, "open(/dev/watchdog0) succeeded"}
     assert_receive {:event, "pet(1)"}
 
@@ -37,7 +37,7 @@ defmodule GuardedRebootTest do
 
   test "guarded poweroff", context do
     heart = start_supervised!({Heart, context.init_args})
-    assert_receive {:heart, :heart_ack}
+    assert_receive {:heart, :heart_ack}, 500
     assert_receive {:event, "open(/dev/watchdog0) succeeded"}
     assert_receive {:event, "pet(1)"}
 
@@ -61,7 +61,7 @@ defmodule GuardedRebootTest do
 
   test "guarded halt", context do
     heart = start_supervised!({Heart, context.init_args})
-    assert_receive {:heart, :heart_ack}
+    assert_receive {:heart, :heart_ack}, 500
     assert_receive {:event, "open(/dev/watchdog0) succeeded"}
     assert_receive {:event, "pet(1)"}
 

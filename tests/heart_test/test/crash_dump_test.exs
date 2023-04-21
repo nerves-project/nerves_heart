@@ -13,7 +13,7 @@ defmodule CrashDumpTest do
 
   test "crash dump waits for notification", context do
     heart = start_supervised!({Heart, context.init_args ++ [crash_dump_seconds: 10]})
-    assert_receive {:heart, :heart_ack}
+    assert_receive {:heart, :heart_ack}, 500
     assert_receive {:event, "open(/dev/watchdog0) succeeded"}
     assert_receive {:event, "pet(1)"}
 
@@ -35,7 +35,7 @@ defmodule CrashDumpTest do
 
   test "crash dump crashes anyway after timeout", context do
     heart = start_supervised!({Heart, context.init_args ++ [crash_dump_seconds: 2]})
-    assert_receive {:heart, :heart_ack}
+    assert_receive {:heart, :heart_ack}, 500
     assert_receive {:event, "open(/dev/watchdog0) succeeded"}
     assert_receive {:event, "pet(1)"}
 

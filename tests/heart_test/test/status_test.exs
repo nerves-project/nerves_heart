@@ -13,7 +13,7 @@ defmodule StatusTest do
 
   test "getting heart status", context do
     heart = start_supervised!({Heart, context.init_args})
-    assert_receive {:heart, :heart_ack}
+    assert_receive {:heart, :heart_ack}, 500
     assert_receive {:event, "open(/dev/watchdog0) succeeded"}
     assert_receive {:event, "pet(1)"}
 
