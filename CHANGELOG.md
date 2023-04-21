@@ -1,5 +1,19 @@
 # Changelog
 
+## v2.2.0
+
+* Changes
+  * Added snooze support to turn off reboots for 15 minutes per snooze. This is
+    super helpful for debugging issues that interact with device health checks.
+    It's activated via either a `USR1` signal or the `"snooze"` command.
+  * Support an initial grace period to avoid hardware watchdog reboots shortly
+    after starting up. This lets you ensure that devices are up for a short
+    period of time to make them debuggable. This helps with remote devices that
+    may not connect to the network quickly enough to be easily debugged.
+  * Support 2 second hardware watchdog timeouts. Previously the limit was 5
+    seconds. 2 seconds is the shortest possible since the pet timer resolution
+    is in seconds.
+
 ## v2.1.0
 
 * Changes
