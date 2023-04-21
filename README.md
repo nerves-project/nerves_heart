@@ -26,6 +26,11 @@ implementation and provides the following changes:
 6. Support for an application-level initialization handshake. This lets your
    application guard against conditions that cause Erlang and Nerves Heart to
    think that everything is ok when it's not. See discussion below.
+7. Support for snoozing timeouts and assuring an uninterrupted amount of time at
+   start. This makes heart friendlier to remote debug where it's nice when the
+   watchdog doesn't get in your way of debugging. These timeouts are limited to
+   avoid accidentally putting the device in a state where it can't recover.
+8. Includes many regression tests make it easier to modify and maintain.
 
 ## Timeouts and semantics
 
@@ -111,10 +116,10 @@ The following table shows the environment variables that affect Nerves Heart:
 | `HEART_BEAT_TIMEOUT`     | Used by Erlang to start `heart`. Erlang promises to pet `heart` before this timeout. |
 | `HEART_INIT_TIMEOUT`     | If set, require an init handshake message before the timeout |
 | `HEART_KILL_SIGNAL`      | Set to "SIGABRT" to send `SIGABRT` rather than `SIGKILL` |
+| `HEART_MIN_RUN_TIME`     | Minimum amount of time to let Erlang run on start. E.g., if set to 120, then `heart` will pet the watchdog automatically and not reboot regardless of what Erlang does. |
 | `HEART_NO_KILL`          | If "TRUE", don't try to kill Erlang before exiting |
 | `HEART_VERBOSE`          | "0" turns off logging, "1" is error logs only, "2" is everything |
 | `HEART_WATCHDOG_PATH`    | Path to hardware watchdog. Defaults to `"/dev/watchdog0"` |
-| `HEART_MIN_RUN_TIME`     | Minimum amount of time to let Erlang run on start. E.g., if set to 120, then `heart` will pet the watchdog automatically and not reboot regardless of what Erlang does. |
 
 ## Linux kernel configuration
 
