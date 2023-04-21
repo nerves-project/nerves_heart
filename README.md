@@ -297,6 +297,22 @@ on the VM by running:
 iex> :heart.set_cmd("disable_vm")
 ```
 
+## Snoozing
+
+If you're debugging a watchdog or Erlang heart issue, it can be really helpful
+to disable reboots temporarily. This is called snoozing and it works by telling
+`heart` to pet the hardware watchdog and keep the Erlang VM running even if it
+should reboot. This is effective for the next 15 minutes every time you run it.
+
+```elixir
+iex> :heart.set_cmd("snooze")
+```
+
+The reason snoozing forever isn't supported is to avoid keeping a device on
+forever in a bad state. For example, it would be unfortunate to start a debug
+session on a remote device and accidentally mess it up in a way where you lose
+connectivity until the next reboot.
+
 ## Debugging
 
 Nerves Heart writes to the kernel's logger to aid debug if something unexpected

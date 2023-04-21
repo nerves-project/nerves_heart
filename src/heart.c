@@ -409,6 +409,7 @@ static int message_loop()
 {
     int   i;
     time_t now;
+    time_t end_snooze;
     fd_set read_fds;
     int   max_fd;
     struct timeval timeout;
@@ -416,7 +417,7 @@ static int message_loop()
     struct msg m;
 
     // Initialize timestamps
-    now = last_heart_beat_time = last_wdt_pet_time = timestamp_seconds();
+    now = last_heart_beat_time = last_wdt_pet_time = end_snooze = timestamp_seconds();
     init_handshake_end_time = now + init_handshake_timeout;
 
     // Pet the hw watchdog on start since we don't know how long it has been
@@ -439,6 +440,14 @@ static int message_loop()
         }
 
         now = timestamp_seconds();
+
+        if (now < end_snooze) {
+            // If snoozing, unconditionally pet the hardware watchdog and record
+            // that it happened.
+            pet_watchdog(now);
+            last_heart_beat_time = now;
+        }
+
         if (now >= last_heart_beat_time + heart_beat_timeout) {
             LOG_ERROR("heart: heartbeat timeout -> no activity for %lu seconds",
                   (unsigned long) (now - last_heart_beat_time));
@@ -515,6 +524,11 @@ static int message_loop()
                     } else if (mp_len == 15 && memcmp(m.fill, "init_handshake", 14) == 0) {
                         /* Application has said that it's completed initialization */
                         init_handshake_happened = 1;
+                    } else if (mp_len == 7 && memcmp(m.fill, "snooze", 6) == 0) {
+                        /* Don't time out for the next 15 minutes no matter what */
+                        pet_watchdog(now);
+                        init_handshake_happened = 1;
+                        end_snooze = now + 15 * 60;
                     }
                     notify_ack();
                     break;
