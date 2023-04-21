@@ -87,6 +87,7 @@ defmodule Heart do
         []
       end
 
+    # WDT_TIMEOUT is handled by the test fixture for what to return from the simulated hardware wdt
     wdt_timeout_env =
       if wdt_timeout do
         [{~c"WDT_TIMEOUT", ~c"#{wdt_timeout}"}]
