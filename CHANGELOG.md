@@ -1,5 +1,20 @@
 # Changelog
 
+## v2.2.0
+
+* Changes
+  * Added snooze support to turn off reboots for 15 minutes per snooze. This is
+    super helpful for debugging issues that interact with device health checks.
+    Send `"snooze"` to Nerves Heart to use.
+  * Support a guaranteed amount of time before rebooting. This lets you ensure
+    that devices are up for at least n minutes before the heart attempts to kill
+    Erlang. This is needed for debugging remote devices that have issues when
+    booting, but can bring up the network and allow debug if left on for a few
+    minutes.
+  * Support 2 second hardware watchdog timeouts. Previously the limit was 5
+    seconds. 2 seconds is the shortest possible since the pet timer resolution
+    is in seconds.
+
 ## v2.1.0
 
 * Changes
