@@ -63,10 +63,13 @@ static void flog(const char *format, ...)
     int count = vsnprintf(buffer, sizeof(buffer), format, ap);
     va_end(ap);
 
-    (void) write(to_elixir_fd, buffer, count);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-result"
+     (void) write(to_elixir_fd, buffer, count);
+#pragma GCC diagnostic pop
 }
 
-__attribute__((constructor)) void fixture_init()
+__attribute__((constructor)) void fixture_init(void)
 {
     char *report_path = getenv("HEART_REPORT_PATH");
     if (!report_path)
@@ -94,7 +97,7 @@ __attribute__((constructor)) void fixture_init()
     unsetenv("DYLD_INSERT_LIBRARIES");
 }
 
-REPLACE(void, sync, ())
+REPLACE(void, sync, (void))
 {
     flog("sync()");
 }

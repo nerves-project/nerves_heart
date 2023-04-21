@@ -194,10 +194,10 @@ static pid_t heart_beat_kill_pid = 0;
 
 /*  prototypes */
 
-static int message_loop();
+static int message_loop(void);
 static void do_terminate(int);
-static int notify_ack();
-static int heart_cmd_info_reply();
+static int notify_ack(void);
+static int heart_cmd_info_reply(time_t now);
 static int write_message(int, const struct msg *);
 static int read_message(int, struct msg *);
 static int read_skip(int, char *, int, int);
