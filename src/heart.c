@@ -151,6 +151,9 @@ struct msg {
 #define  DEFAULT_WDT_TIMEOUT        10
 #define  WDT_PET_TIMEOUT_BUFFER     10 /* Pet the watchdog 10 seconds before it would expire (or half its timeout) */
 #define  DEFAULT_WDT_PET_TIMEOUT    (DEFAULT_WDT_TIMEOUT / 2)
+#define  MIN_WDT_PET_TIMEOUT        2 /* Limited by pet timer's resolution in seconds */
+#define  MAX_WDT_PET_TIMEOUT        120
+
 static int wdt_pet_timeout = DEFAULT_WDT_PET_TIMEOUT;
 
 /* heart_beat_timeout is the maximum gap in seconds between two
@@ -277,7 +280,7 @@ static void try_open_watchdog()
         int ret;
 
         ret = ioctl(watchdog_fd, WDIOC_GETTIMEOUT, &real_wdt_timeout);
-        if (ret == 0 && real_wdt_timeout >= 5) {
+        if (ret == 0 && real_wdt_timeout >= MIN_WDT_PET_TIMEOUT) {
             wdt_timeout = real_wdt_timeout;
             /* Most of the time, pet WDT_PET_TIMEOUT_BUFFER seconds before the timeout,
              * but if it's really short, then pet half the timeout.

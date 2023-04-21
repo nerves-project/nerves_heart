@@ -33,7 +33,7 @@ defmodule StatusTest do
              "wdt_options" => "settimeout,magicclose,keepaliveping,",
              "wdt_pet_time_left" => "110",
              "wdt_pre_timeout" => "0",
-             "wdt_time_left" => "116",
+             "wdt_time_left" => "60",
              "wdt_timeout" => "120"
            }
 

@@ -257,7 +257,7 @@ REPLACE(int, ioctl, (int fd, unsigned long request, ...))
     case WDIOC_GETTIMELEFT:
         {
             int *v = va_arg(ap, int *);
-            *v = wdt_timeout - 4;
+            *v = wdt_timeout / 2;
             break;
         }
 
