@@ -187,11 +187,14 @@ static time_t init_handshake_end_time = 0;
 static time_t min_run_time = 0;
 
 /* End timestamp for not crashing the system on an issue */
-static time_t min_run_end_time = 0;
+static time_t min_run_time_end_time = 0;
 
 /* All current platforms have a process identifier that
    fits in an unsigned long and where 0 is an impossible or invalid value */
 static pid_t heart_beat_kill_pid = 0;
+
+/* When snooze is enabled, this is when it's over. */
+static time_t snooze_end_time = 0;
 
 /* reasons for reboot */
 #define  R_TIMEOUT          (1)
@@ -432,7 +435,6 @@ static int message_loop()
 {
     int   i;
     time_t now;
-    time_t end_snooze;
     fd_set read_fds;
     int   max_fd;
     struct timeval timeout;
@@ -440,10 +442,10 @@ static int message_loop()
     struct msg m;
 
     // Initialize timestamps
-    now = last_heart_beat_time = last_wdt_pet_time = end_snooze = timestamp_seconds();
+    now = last_heart_beat_time = last_wdt_pet_time = snooze_end_time = timestamp_seconds();
     init_handshake_end_time = now + init_handshake_timeout;
-    min_run_end_time = now + min_run_time;
-    last_heart_beat_time = min_run_end_time;
+    min_run_time_end_time = now + min_run_time;
+    last_heart_beat_time = min_run_time_end_time;
 
     // Pet the hw watchdog on start since we don't know how long it has been
     pet_watchdog(now);
@@ -486,7 +488,7 @@ static int message_loop()
             continue;
         }
 
-        if (now < end_snooze || now < min_run_end_time) {
+        if (now < snooze_end_time || now < min_run_time_end_time) {
             // If snoozing or keeping the device alive for a minimum amount of time, unconditionally pet the hardware watchdog.
             pet_watchdog(now);
         }
@@ -553,7 +555,7 @@ static int message_loop()
                         /* Don't time out for the next 15 minutes no matter what */
                         pet_watchdog(now);
                         init_handshake_happened = 1;
-                        end_snooze = now + 15 * 60;
+                        snooze_end_time = now + 15 * 60;
                     }
                     notify_ack();
                     break;
@@ -836,6 +838,8 @@ static int heart_cmd_info_reply(time_t now)
     int init_handshake_time_left = init_handshake_end_time - now;
     if (init_handshake_happened || init_handshake_time_left < 0)
         init_handshake_time_left = 0;
+    int min_run_time_time_left = min_run_time_end_time > now ? min_run_time_end_time - now : 0;
+    int snooze_time_left = snooze_end_time > now ? snooze_end_time - now : 0;
 
     /* The reply format is:
      *  <KEY>=<VALUE> NEWLINE
@@ -844,11 +848,13 @@ static int heart_cmd_info_reply(time_t now)
     p += sprintf(p, "program_name=" PROGRAM_NAME "\nprogram_version=" PROGRAM_VERSION_STR "\n"
         "heartbeat_timeout=%d\n"
         "heartbeat_time_left=%d\n"
+        "min_run_time_left=%d\n"
+        "snooze_time_left=%d\n"
         "wdt_pet_time_left=%d\n"
         "init_handshake_happened=%d\n"
         "init_handshake_timeout=%d\n"
         "init_handshake_time_left=%d\n",
-        heart_beat_timeout, heartbeat_time_left, wdt_pet_time_left,
+        heart_beat_timeout, heartbeat_time_left, min_run_time_time_left, snooze_time_left, wdt_pet_time_left,
         init_handshake_happened, (int) init_handshake_timeout, init_handshake_time_left);
 
     ret = ioctl(watchdog_fd, WDIOC_GETSUPPORT, &info);
