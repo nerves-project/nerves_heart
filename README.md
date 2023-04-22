@@ -314,6 +314,15 @@ should reboot. This is effective for the next 15 minutes every time you run it.
 iex> :heart.set_cmd("snooze")
 ```
 
+If `:heart.set_cmd/1` doesn't return, that means that the Erlang heart process
+is stuck. This is probably due to the health check callback (registered by
+`:heart.set_callback/2`) taking a long time. To get past this, send the `USR1`
+signal to Nerves Heart like this:
+
+```elixir
+iex> :os.cmd('killall -USR1 heart')
+```
+
 The reason snoozing forever isn't supported is to avoid keeping a device on
 forever in a bad state. For example, it would be unfortunate to start a debug
 session on a remote device and accidentally mess it up in a way where you lose

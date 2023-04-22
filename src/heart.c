@@ -196,6 +196,9 @@ static pid_t heart_beat_kill_pid = 0;
 /* When snooze is enabled, this is when it's over. */
 static time_t snooze_end_time = 0;
 
+/* Set to one when either the SIGUSR1 is received */
+static int snooze_requested = 0;
+
 /* reasons for reboot */
 #define  R_TIMEOUT          (1)
 #define  R_CLOSED           (2)
@@ -388,6 +391,12 @@ static void stop_petting_watchdog()
     wdt_pet_timeout = 86400;
 }
 
+static void snooze_signal_handler(int sig)
+{
+    (void) sig;
+    snooze_requested = 1;
+}
+
 int main(int argc, char **argv)
 {
     open_log();
@@ -416,6 +425,8 @@ int main(int argc, char **argv)
         if (init_handshake_timeout > 0 && init_handshake_timeout < init_grace_time)
             init_handshake_timeout = init_grace_time;
     }
+
+    signal(SIGUSR1, snooze_signal_handler);
 
     get_arguments(argc, argv);
     notify_ack();
@@ -453,7 +464,16 @@ static int message_loop()
     max_fd = STDIN_FILENO;
 
     while (1) {
-        FD_ZERO(&read_fds);         /* ZERO on each turn */
+        if (snooze_requested) {
+            /* Don't time out for the next 15 minutes no matter what */
+            pet_watchdog(now);
+            init_handshake_happened = 1;
+            last_heart_beat_time = snooze_end_time = now + 15 * 60;
+            snooze_requested = 0;
+        }
+
+        /* Prepare to block on select */
+        FD_ZERO(&read_fds);
         FD_SET(STDIN_FILENO, &read_fds);
         timeout.tv_sec = max(1, min(last_heart_beat_time + heart_beat_timeout - now, last_wdt_pet_time + wdt_pet_timeout - now));
         timeout.tv_usec = 0;
@@ -462,6 +482,9 @@ static int message_loop()
             timeout.tv_sec = min(timeout.tv_sec, init_handshake_end_time - now);
 
         if ((i = select(max_fd + 1, &read_fds, NULLFDS, NULLFDS, &timeout)) < 0) {
+            if (errno == EINTR)
+                continue;
+
             LOG_ERROR("heart: select failed: %s", strerror(errno));
             return R_ERROR;
         }
@@ -554,10 +577,7 @@ static int message_loop()
                         /* Application has said that it's completed initialization */
                         init_handshake_happened = 1;
                     } else if (mp_len == 7 && memcmp(m.fill, "snooze", 6) == 0) {
-                        /* Don't time out for the next 15 minutes no matter what */
-                        pet_watchdog(now);
-                        init_handshake_happened = 1;
-                        last_heart_beat_time = snooze_end_time = now + 15 * 60;
+                        snooze_requested = 1;
                     }
                     notify_ack();
                     break;
