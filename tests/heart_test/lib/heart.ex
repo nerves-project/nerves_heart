@@ -79,7 +79,7 @@ defmodule Heart do
     wdt_timeout = init_args[:wdt_timeout] || 120
     crash_dump_seconds = init_args[:crash_dump_seconds]
     init_timeout = init_args[:init_timeout]
-    min_run_time = init_args[:min_run_time]
+    init_grace_time = init_args[:init_grace_time]
 
     File.exists?(shim) || raise "Can't find heart_fixture.so"
     File.exists?(heart) || raise "Can't find heart"
@@ -105,8 +105,8 @@ defmodule Heart do
         if init_timeout do
           {~c"HEART_INIT_TIMEOUT", ~c"#{init_timeout}"}
         end,
-        if min_run_time do
-          {~c"HEART_MIN_RUN_TIME", ~c"#{min_run_time}"}
+        if init_grace_time do
+          {~c"HEART_INIT_GRACE_TIME", ~c"#{init_grace_time}"}
         end,
         {~c"LD_PRELOAD", c_shim},
         {~c"DYLD_INSERT_LIBRARIES", c_shim},

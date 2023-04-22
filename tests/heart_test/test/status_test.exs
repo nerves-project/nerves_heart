@@ -25,7 +25,7 @@ defmodule StatusTest do
              "init_handshake_happened" => "1",
              "init_handshake_time_left" => "0",
              "init_handshake_timeout" => "0",
-             "min_run_time_left" => "0",
+             "init_grace_time_left" => "0",
              "program_name" => "nerves_heart",
              "program_version" => "2.1.0",
              "snooze_time_left" => "0",

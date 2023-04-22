@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-defmodule MinRunTimeTest do
+defmodule InitGraceTimeTest do
   use ExUnit.Case, async: true
 
   import HeartTestCommon
@@ -11,10 +11,10 @@ defmodule MinRunTimeTest do
     common_setup()
   end
 
-  test "heart doesn't reboot when not petted before min_run_time", context do
+  test "heart doesn't reboot when not petted before init_grace_time", context do
     # Shortest timeout is 11 seconds
     start_supervised!(
-      {Heart, context.init_args ++ [heart_beat_timeout: 11, wdt_timeout: 10, min_run_time: 12]}
+      {Heart, context.init_args ++ [heart_beat_timeout: 11, wdt_timeout: 10, init_grace_time: 12]}
     )
 
     assert_receive {:heart, :heart_ack}, 500
@@ -28,15 +28,15 @@ defmodule MinRunTimeTest do
     assert_receive {:event, "pet(1)"}, 1000
     refute_received _
 
-    # At the 12 second mark, we're passed the min_run_time grace period. If it fails
-    # on the next line, min_run_time is broke.
+    # At the 12 second mark, we're passed the init_grace_time grace period. If it fails
+    # on the next line, init_grace_time is broke.
     refute_receive _, 4500
     assert_receive {:event, "pet(1)"}, 1000
     refute_receive _, 4500
     assert_receive {:event, "pet(1)"}, 1000
     refute_received _
 
-    # Now we're 3 seconds from the 23 second mark (12s min_run_time + 11s hb_timeout) when the exit happens.
+    # Now we're 3 seconds from the 23 second mark (12s init_grace_time + 11s hb_timeout) when the exit happens.
     refute_receive _, 2800
     assert_receive {:event, "sync()"}, 500
     assert_receive {:event, "reboot(0x01234567)"}

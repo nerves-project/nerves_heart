@@ -116,7 +116,7 @@ The following table shows the environment variables that affect Nerves Heart:
 | `HEART_BEAT_TIMEOUT`     | Used by Erlang to start `heart`. Erlang promises to pet `heart` before this timeout. |
 | `HEART_INIT_TIMEOUT`     | If set, require an init handshake message before the timeout |
 | `HEART_KILL_SIGNAL`      | Set to "SIGABRT" to send `SIGABRT` rather than `SIGKILL` |
-| `HEART_MIN_RUN_TIME`     | Minimum amount of time to let Erlang run on start. E.g., if set to 120, then `heart` will pet the watchdog automatically and not reboot regardless of what Erlang does. |
+| `HEART_INIT_GRACE_TIME`  | Grace period for Erlang at the start. E.g., if set to 120, then `heart` will pet the hardware watchdog for the first two minutes even if Erlang isn't responsive. |
 | `HEART_NO_KILL`          | If "TRUE", don't try to kill Erlang before exiting |
 | `HEART_VERBOSE`          | "0" turns off logging, "1" is error logs only, "2" is everything |
 | `HEART_WATCHDOG_PATH`    | Path to hardware watchdog. Defaults to `"/dev/watchdog0"` |

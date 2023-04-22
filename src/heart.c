@@ -115,8 +115,8 @@
 #  define FD_ZERO(FD_SET_PTR) memset(FD_SET_PTR, 0, sizeof(fd_set))
 #endif
 
+#define HEART_INIT_GRACE_TIME_ENV  "HEART_INIT_GRACE_TIME"
 #define HEART_INIT_TIMEOUT_ENV     "HEART_INIT_TIMEOUT"
-#define HEART_MIN_RUN_TIME_ENV     "HEART_MIN_RUN_TIME"
 #define ERL_CRASH_DUMP_SECONDS_ENV "ERL_CRASH_DUMP_SECONDS"
 #define HEART_KILL_SIGNAL          "HEART_KILL_SIGNAL"
 #define HEART_WATCHDOG_PATH        "HEART_WATCHDOG_PATH"
@@ -184,10 +184,10 @@ static int init_handshake_happened = 0;
 static time_t init_handshake_end_time = 0;
 
 /* Keep the system running for this many seconds from the start */
-static time_t min_run_time = 0;
+static time_t init_grace_time = 0;
 
 /* End timestamp for not crashing the system on an issue */
-static time_t min_run_time_end_time = 0;
+static time_t init_grace_end_time = 0;
 
 /* All current platforms have a process identifier that
    fits in an unsigned long and where 0 is an impossible or invalid value */
@@ -305,7 +305,7 @@ static void try_open_watchdog()
             LOG_ERROR("heart: error or too short WDT timeout so using defaults!");
         }
 
-        LOG_INFO("heart: kernel watchdog activated. WDT timeout %ds, WDT pet interval %ds, VM timeout %ds, min run time %ds", wdt_timeout, wdt_pet_timeout, heart_beat_timeout, min_run_time);
+        LOG_INFO("heart: kernel watchdog activated. WDT timeout %ds, WDT pet interval %ds, VM timeout %ds, initial grace period %ds", wdt_timeout, wdt_pet_timeout, heart_beat_timeout, init_grace_time);
     } else {
         watchdog_open_retries--;
         if (watchdog_open_retries <= 0) {
@@ -402,19 +402,19 @@ int main(int argc, char **argv)
         if (init_handshake_timeout > 0)
             init_handshake_happened = 0;
     }
-    if (is_env_set(HEART_MIN_RUN_TIME_ENV)) {
-        const char *min_run_time_env = get_env(HEART_MIN_RUN_TIME_ENV);
-        min_run_time = atoi(min_run_time_env);
-        if (min_run_time < 0)
-            min_run_time = 0;
-        else if (min_run_time > MAX_MIN_RUN_TIME)
-            min_run_time = MAX_MIN_RUN_TIME;
+    if (is_env_set(HEART_INIT_GRACE_TIME_ENV)) {
+        const char *init_grace_time_env = get_env(HEART_INIT_GRACE_TIME_ENV);
+        init_grace_time = atoi(init_grace_time_env);
+        if (init_grace_time < 0)
+            init_grace_time = 0;
+        else if (init_grace_time > MAX_MIN_RUN_TIME)
+            init_grace_time = MAX_MIN_RUN_TIME;
 
         // Check that the initialization handshake timeout, if any, doesn't
-        // come before the min run time and introduce another way to exit too
-        // soon.
-        if (init_handshake_timeout > 0 && init_handshake_timeout < min_run_time)
-            init_handshake_timeout = min_run_time;
+        // come before the initial grace period time out and introduce another
+        // way to exit too soon.
+        if (init_handshake_timeout > 0 && init_handshake_timeout < init_grace_time)
+            init_handshake_timeout = init_grace_time;
     }
 
     get_arguments(argc, argv);
@@ -444,8 +444,8 @@ static int message_loop()
     // Initialize timestamps
     now = last_heart_beat_time = last_wdt_pet_time = snooze_end_time = timestamp_seconds();
     init_handshake_end_time = now + init_handshake_timeout;
-    min_run_time_end_time = now + min_run_time;
-    last_heart_beat_time = min_run_time_end_time;
+    init_grace_end_time = now + init_grace_time;
+    last_heart_beat_time = init_grace_end_time;
 
     // Pet the hw watchdog on start since we don't know how long it has been
     pet_watchdog(now);
@@ -488,7 +488,7 @@ static int message_loop()
             continue;
         }
 
-        if (now < snooze_end_time || now < min_run_time_end_time) {
+        if (now < snooze_end_time || now < init_grace_end_time) {
             // If snoozing or keeping the device alive for a minimum amount of time, unconditionally pet the hardware watchdog.
             pet_watchdog(now);
         }
@@ -840,7 +840,7 @@ static int heart_cmd_info_reply(time_t now)
     int init_handshake_time_left = init_handshake_end_time - now;
     if (init_handshake_happened || init_handshake_time_left < 0)
         init_handshake_time_left = 0;
-    int min_run_time_time_left = min_run_time_end_time > now ? min_run_time_end_time - now : 0;
+    int init_grace_time_time_left = init_grace_end_time > now ? init_grace_end_time - now : 0;
     int snooze_time_left = snooze_end_time > now ? snooze_end_time - now : 0;
 
     /* The reply format is:
@@ -850,13 +850,13 @@ static int heart_cmd_info_reply(time_t now)
     p += sprintf(p, "program_name=" PROGRAM_NAME "\nprogram_version=" PROGRAM_VERSION_STR "\n"
         "heartbeat_timeout=%d\n"
         "heartbeat_time_left=%d\n"
-        "min_run_time_left=%d\n"
+        "init_grace_time_left=%d\n"
         "snooze_time_left=%d\n"
         "wdt_pet_time_left=%d\n"
         "init_handshake_happened=%d\n"
         "init_handshake_timeout=%d\n"
         "init_handshake_time_left=%d\n",
-        heart_beat_timeout, heartbeat_time_left, min_run_time_time_left, snooze_time_left, wdt_pet_time_left,
+        heart_beat_timeout, heartbeat_time_left, init_grace_time_time_left, snooze_time_left, wdt_pet_time_left,
         init_handshake_happened, (int) init_handshake_timeout, init_handshake_time_left);
 
     ret = ioctl(watchdog_fd, WDIOC_GETSUPPORT, &info);
