@@ -507,6 +507,8 @@ static int message_loop()
                 switch (m.op) {
                 case HEART_BEAT:
                     pet_watchdog(now);
+                    // Snoozing and the initial grace period set
+                    // last_heart_beat_time to a future time.
                     if (last_heart_beat_time < now)
                         last_heart_beat_time = now;
                     break;
@@ -555,7 +557,7 @@ static int message_loop()
                         /* Don't time out for the next 15 minutes no matter what */
                         pet_watchdog(now);
                         init_handshake_happened = 1;
-                        snooze_end_time = now + 15 * 60;
+                        last_heart_beat_time = snooze_end_time = now + 15 * 60;
                     }
                     notify_ack();
                     break;
