@@ -559,13 +559,23 @@ static int message_loop()
 
                         LOG_ERROR("heart: reboot signaled. No longer petting the WDT");
                         sync();
-                    } else if (mp_len == 17 && memcmp(m.fill, "guarded_poweroff", 16) == 0) {
+                    } else if (mp_len == 25 && memcmp(m.fill, "guarded_immediate_reboot", 24) == 0) {
+                        stop_petting_watchdog();
+                        reboot(LINUX_REBOOT_CMD_RESTART);
+
+                        LOG_ERROR("heart: immediate reboot signaled. No longer petting the WDT");
+                     } else if (mp_len == 17 && memcmp(m.fill, "guarded_poweroff", 16) == 0) {
                         pet_watchdog(now);
                         stop_petting_watchdog();
                         kill(1, SIGUSR2); // SIGUSR2 signals "poweroff" to PID 1
 
                         LOG_ERROR("heart: poweroff signaled. No longer petting the WDT");
                         sync();
+                    } else if (mp_len == 27 && memcmp(m.fill, "guarded_immediate_poweroff", 26) == 0) {
+                        stop_petting_watchdog();
+                        reboot(LINUX_REBOOT_CMD_POWER_OFF);
+
+                        LOG_ERROR("heart: immediate poweroff signaled. No longer petting the WDT");
                     } else if (mp_len == 13 && memcmp(m.fill, "guarded_halt", 12) == 0) {
                         pet_watchdog(now);
                         stop_petting_watchdog();

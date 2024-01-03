@@ -165,7 +165,14 @@ defmodule Heart do
   end
 
   def handle_info({heart, {:exit_status, value}}, %{heart: heart} = state) do
-    {:noreply, process_event(state, {:exit, value})}
+    case :queue.out(state.requests) do
+      {{:value, client}, new_requests} ->
+        GenServer.reply(client, {:error, :exit})
+        {:noreply, %{state | requests: new_requests}}
+
+      {:empty, _requests} ->
+        {:noreply, process_event(state, {:exit, value})}
+    end
   end
 
   def handle_info({:udp, backend, _, 0, data}, %{backend: backend} = state) do

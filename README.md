@@ -284,6 +284,10 @@ the WDT will be pet for the last time. You should then call either
 `:init.stop/0` (graceful) or `:erlang.halt/0` (ungraceful) to exit the Erlang
 VM. Both `erlinit` and the WDT will prevent shutdown from not completing.
 
+It's also possible to do a totally ungraceful reboot or shutdown if you need a
+very immediate response. The `"guarded_immediate_reboot"` and
+`"guarded_immediate_poweroff"` commands do this.
+
 ## Testing
 
 It's reassuring to know that `heart` does what it's supposed to do since it
@@ -346,6 +350,23 @@ reason, set `HEART_VERBOSE` to `0`:
 -env HEART_VERBOSE 0
 ```
 
+## Heart set_cmd summary
+
+The following commands can be sent to Nerves Heart via `:heart.set_cmd`:
+
+| Command                        | Description           |
+| ------------------------------ | --------------------- |
+| `"disable"`                    | Same as `"disable_hw"` |
+| `"disable_hw"`                 | Stop petting the hardware watchdog |
+| `"disable_vm"`                 | Return a timeout to Erlang |
+| `"init_handshake"`             | Stop the initialization timeout timer |
+| `"guarded_immediate_poweroff"` | Stop petting the watchdog and immediately power off |
+| `"guarded_immediate_reboot"`   | Stop petting the watchdog and immediately reboot |
+| `"guarded_halt"`               | Stop petting the watchdog and start a graceful halt |
+| `"guarded_poweroff"`           | Stop petting the watchdog and start a graceful power off |
+| `"guarded_reboot"`             | Stop petting the watchdog and start a graceful reboot |
+| `"snooze"`                     | Don't stop petting the watchdog for the next 15 minutes |
+
 ## License
 
 This production code in this project is Erlang/OTP's `heart.c` with custom
@@ -362,4 +383,3 @@ Exceptions to Apache-2.0 licensing are:
 * Documentation is CC-BY-4.0
 * Linux kernel headers for MacOS development are GPL-2.0-only with the Linux
   syscall note.
-
