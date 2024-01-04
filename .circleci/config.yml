@@ -9,7 +9,7 @@ jobs:
       - run: reuse lint
   build:
     docker:
-      - image: cimg/elixir:1.14.1
+      - image: cimg/elixir:1.16.0
     steps:
       - checkout
       - run: mix local.hex --force
