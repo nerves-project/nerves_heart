@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.3.0
+
+* Changes
+  * Add guarded immediate reboot and poweroff commands. These bypass all
+    graceful shutdown code and should be used with care. Like the regular
+    guarded reboot and power they stop petting the watchdog too.
+
 ## v2.2.0
 
 * Changes
