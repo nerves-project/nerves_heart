@@ -115,6 +115,7 @@ The following table shows the environment variables that affect Nerves Heart:
 | `ERL_CRASH_DUMP_SECONDS` | Timeout in seconds to wait for Erlang to exit |
 | `HEART_BEAT_TIMEOUT`     | Used by Erlang to start `heart`. Erlang promises to pet `heart` before this timeout. |
 | `HEART_INIT_TIMEOUT`     | If set, require an init handshake message before the timeout |
+| `HEART_KERNEL_TIMEOUT`   | Set the kernel watchdog driver's timeout. Requires that the kernel watchdog driver supports WDIOF_SETTIMEOUT |
 | `HEART_KILL_SIGNAL`      | Set to "SIGABRT" to send `SIGABRT` rather than `SIGKILL` |
 | `HEART_INIT_GRACE_TIME`  | Grace period for Erlang at the start. E.g., if set to 120, then `heart` will pet the hardware watchdog for the first two minutes even if Erlang isn't responsive. |
 | `HEART_NO_KILL`          | If "TRUE", don't try to kill Erlang before exiting |

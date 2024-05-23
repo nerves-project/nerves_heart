@@ -117,6 +117,7 @@
 
 #define HEART_INIT_GRACE_TIME_ENV  "HEART_INIT_GRACE_TIME"
 #define HEART_INIT_TIMEOUT_ENV     "HEART_INIT_TIMEOUT"
+#define HEART_KERNEL_TIMEOUT_ENV   "HEART_KERNEL_TIMEOUT"
 #define ERL_CRASH_DUMP_SECONDS_ENV "ERL_CRASH_DUMP_SECONDS"
 #define HEART_KILL_SIGNAL          "HEART_KILL_SIGNAL"
 #define HEART_WATCHDOG_PATH        "HEART_WATCHDOG_PATH"
@@ -292,7 +293,33 @@ static void try_open_watchdog()
     watchdog_fd = open(watchdog_path, O_WRONLY);
     if (watchdog_fd >= 0) {
         int real_wdt_timeout;
-        int ret;
+        int set_wdt_timeout = 0;
+        int ret = 0;
+        char *kernel_timeout_env = get_env(HEART_KERNEL_TIMEOUT_ENV);
+
+        if (kernel_timeout_env != NULL) {
+            struct watchdog_info info;
+            if (ioctl(watchdog_fd, WDIOC_GETSUPPORT, &info) == 0 &&
+                info.options & WDIOF_SETTIMEOUT) {
+
+                set_wdt_timeout = atoi(kernel_timeout_env);
+                if (set_wdt_timeout >= MIN_WDT_PET_TIMEOUT &&
+                    set_wdt_timeout <= MAX_WDT_PET_TIMEOUT) {
+                    ret = ioctl(watchdog_fd, WDIOC_SETTIMEOUT, &set_wdt_timeout);
+                    if (ret == 0) {
+                        LOG_INFO("heart: kernel WDT timeout set to %ds", set_wdt_timeout);
+                    } else {
+                        LOG_ERROR("heart: Failed to set kernel WDT timeout to %ds (ioctl ret %d, errno %d: %s)",
+                                  set_wdt_timeout, ret, errno, strerror(errno));
+                    }
+                } else {
+                    LOG_ERROR("heart: Failed to set kernel WDT timeout to %ds (invalid range %d-%d)",
+                              set_wdt_timeout, MIN_WDT_PET_TIMEOUT, MAX_WDT_PET_TIMEOUT);
+                }
+            } else {
+                LOG_ERROR("heart: Failed to set kernel WDT timeout to %ss (not supported)", kernel_timeout_env);
+            }
+        }
 
         ret = ioctl(watchdog_fd, WDIOC_GETTIMEOUT, &real_wdt_timeout);
         if (ret == 0 && real_wdt_timeout >= MIN_WDT_PET_TIMEOUT) {
