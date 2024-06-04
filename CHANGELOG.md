@@ -1,5 +1,12 @@
 # Changelog
 
+## v2.4.0
+
+* Changes
+  * Support modifying the kernel's default watchdog timeout via the
+    `WDIOF_SETTIMEOUT` ioctl. See the `HEART_KERNEL_TIMEOUT` option. Thanks to
+    @ringlej.
+
 ## v2.3.0
 
 * Changes
