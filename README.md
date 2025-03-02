@@ -1,6 +1,6 @@
 # nerves_heart
 
-[![CircleCI](https://circleci.com/gh/nerves-project/nerves_heart.svg?style=svg)](https://circleci.com/gh/nerves-project/nerves_heart)
+[![CircleCI](https://dl.circleci.com/status-badge/img/gh/nerves-project/nerves_heart/tree/main.svg?style=svg)](https://dl.circleci.com/status-badge/redirect/gh/nerves-project/nerves_heart/tree/main)
 [![REUSE status](https://api.reuse.software/badge/github.com/nerves-project/nerves_heart)](https://api.reuse.software/info/github.com/nerves-project/nerves_heart)
 
 This is a replacement for Erlang's `heart` port process specifically for

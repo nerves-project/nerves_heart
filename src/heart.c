@@ -1,5 +1,8 @@
 // SPDX-FileCopyrightText: 1996-2020 Ericsson AB. All Rights Reserved.
-// SPDX-FileCopyrightText: 2022 Nerves Project Developers
+// SPDX-FileCopyrightText: 2018 Frank Hunleth
+// SPDX-FileCopyrightText: 2020 Alan Jackson
+// SPDX-FileCopyrightText: 2020 Jon Thacker
+// SPDX-FileCopyrightText: 2024 Jon Ringle
 //
 // SPDX-License-Identifier: Apache-2.0
 

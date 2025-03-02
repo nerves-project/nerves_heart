@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2018 Frank Hunleth
+#
+# SPDX-License-Identifier: Apache-2.0
+#
 VERSION=2.4.0
 
 EXTRA_CFLAGS=-Wall -Wextra -DPROGRAM_VERSION=$(VERSION)
