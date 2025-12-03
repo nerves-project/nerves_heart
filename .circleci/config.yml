@@ -9,7 +9,7 @@ jobs:
       - run: reuse lint
   build:
     docker:
-      - image: cimg/elixir:1.19
+      - image: hexpm/elixir:1.19.4-erlang-27.2-alpine-3.21.0
     steps:
       - checkout
       - run: mix local.hex --force
