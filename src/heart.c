@@ -101,6 +101,7 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/uio.h>
 #include <fcntl.h>
 
 #define PROGRAM_NAME "nerves_heart"
@@ -251,10 +252,10 @@ static void open_log()
 {
     const char *verbose_value = get_env(HEART_VERBOSE);
     if (verbose_value)
-	verbose = atoi(verbose_value);
+       verbose = atoi(verbose_value);
 
-    // See if we can log directly to the kernel log. If so, then use it for
-    // warnings and errors since that will get them to the Elixir logger via
+     // See if we can log directly to the kernel log. If so, then use it for
+     // warnings and errors since that will get them to the Elixir logger via
     // Nerves.Runtime or give them the best chance of being seen if everything
     // else is broke.
     int log_fd = open("/dev/kmsg", O_WRONLY | O_CLOEXEC);
@@ -262,6 +263,46 @@ static void open_log()
         dup2(log_fd, STDERR_FILENO);
         close(log_fd);
     }
+}
+
+// Best effort function to log pmsg breadcrumbs if the user
+// has enabled it.
+static void log_pmsg_breadcrumb(const char *message, size_t len)
+{
+    static int open_failed = 0;
+
+    int pmsg_fd = -1;
+    if (open_failed) {
+        // Don't bother trying again on failures.
+        return;
+    } else {
+        pmsg_fd = open("/dev/pmsg0", O_WRONLY | O_CLOEXEC);
+        if (pmsg_fd < 0) {
+            open_failed = 1;
+            return;
+        }
+    }
+
+    time_t rawtime;
+    time(&rawtime);
+    struct tm *timeinfo = gmtime(&rawtime);
+
+    // Match the RFC3339 timestamps from Erlang's logger_formatter
+    // 2025-12-04T00:01:34.200744+00:00
+    char timestamp[48];
+    size_t timestamp_len = strftime(timestamp, sizeof(timestamp), "%Y-%m-%dT%H:%M:%S.000000+00:00", timeinfo);
+
+    // Let the kernel concatenate the log message
+    struct iovec iov[3];
+    iov[0].iov_base = timestamp;
+    iov[0].iov_len = timestamp_len;
+    iov[1].iov_base = " ";
+    iov[1].iov_len = 1;
+    iov[2].iov_base = (char *) message;
+    iov[2].iov_len = len;
+    ssize_t ignore = writev(pmsg_fd, iov, 3);
+    (void) ignore;
+    close(pmsg_fd);
 }
 
 static void print_log(const char *format, ...)
@@ -275,8 +316,10 @@ static void print_log(const char *format, ...)
 
     if (len > 0) {
         buffer[len++] = '\n';
-        int ignore = write(STDERR_FILENO, buffer, len);
+        ssize_t ignore = write(STDERR_FILENO, buffer, len);
         (void) ignore;
+
+        log_pmsg_breadcrumb(buffer, len);
     }
 }
 
