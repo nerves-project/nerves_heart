@@ -351,6 +351,20 @@ reason, set `HEART_VERBOSE` to `0`:
 -env HEART_VERBOSE 0
 ```
 
+## Pstore breadcrumbs
+
+The logging described above doesn't always work when watchdogs start rebooting
+systems. To get around this limitation, Nerves Heart also writes notable events
+to the Linux pstore's `pmsg` circular buffer. When enabled and configured,
+`pmsg` survives reboots even though it's an in-memory buffer. The tradeoff is
+that you can't write a lot to it.
+
+See the Linux `pstore` documentation and the
+[ramoops_logger](https://hex.pm/packages/ramoops_logger) for more details.
+
+Currently there's nothing to configure and Nerves Heart will automatically write
+breadcrumbs if it can.
+
 ## Heart set_cmd summary
 
 The following commands can be sent to Nerves Heart via `:heart.set_cmd`:

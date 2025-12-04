@@ -13,7 +13,7 @@ endif
 
 all: heart
 
-heart: src/heart.c $(EXTRA_SRC)
+heart: src/heart.c src/elog.c $(EXTRA_SRC)
 	$(CC) $(CFLAGS) $(EXTRA_CFLAGS) -o $@ $^
 
 test: check
