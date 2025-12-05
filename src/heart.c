@@ -573,12 +573,12 @@ static int message_loop()
                         /* If the user specifies "disable" or "disable_hw", turn off the hw watchdog
                          * petter to verify that the system reboots.
                          */
-                        LOG_ERROR("heart: Petting of the hardware watchdog is disabled. System should reboot momentarily.");
+                        LOG_ERROR("heart: Received 'disable_hw' so no longer petting the hardware watchdog. System should reboot momentarily.");
 
                         stop_petting_watchdog();
                     } else if (mp_len == 11 && memcmp(m.fill, "disable_vm", 10) == 0) {
                         /* If the user specifies "disable_vm", return like there was a timeout */
-                        LOG_ERROR("heart: Forced heart process timeout. System should reboot momentarily.");
+                        LOG_ERROR("heart: Received 'disable_vm' so exiting with a timeout. System should reboot momentarily.");
 
                         notify_ack();
                         return R_TIMEOUT;
@@ -587,36 +587,38 @@ static int message_loop()
                         stop_petting_watchdog();
                         kill(1, SIGTERM); // SIGTERM signals "reboot" to PID 1
 
-                        LOG_ERROR("heart: reboot signaled. No longer petting the WDT");
+                        LOG_ERROR("heart: Guarded reboot requested. No longer petting the WDT");
                         sync();
                     } else if (mp_len == 25 && memcmp(m.fill, "guarded_immediate_reboot", 24) == 0) {
                         stop_petting_watchdog();
                         reboot(LINUX_REBOOT_CMD_RESTART);
 
-                        LOG_ERROR("heart: immediate reboot signaled. No longer petting the WDT");
+                        LOG_ERROR("heart: Guarded immediate reboot requested. No longer petting the WDT");
                      } else if (mp_len == 17 && memcmp(m.fill, "guarded_poweroff", 16) == 0) {
                         pet_watchdog(now);
                         stop_petting_watchdog();
                         kill(1, SIGUSR2); // SIGUSR2 signals "poweroff" to PID 1
 
-                        LOG_ERROR("heart: poweroff signaled. No longer petting the WDT");
+                        LOG_ERROR("heart: Guarded poweroff requested. No longer petting the WDT");
                         sync();
                     } else if (mp_len == 27 && memcmp(m.fill, "guarded_immediate_poweroff", 26) == 0) {
                         stop_petting_watchdog();
                         reboot(LINUX_REBOOT_CMD_POWER_OFF);
 
-                        LOG_ERROR("heart: immediate poweroff signaled. No longer petting the WDT");
+                        LOG_ERROR("heart: Guarded immediate poweroff requested. No longer petting the WDT");
                     } else if (mp_len == 13 && memcmp(m.fill, "guarded_halt", 12) == 0) {
                         pet_watchdog(now);
                         stop_petting_watchdog();
                         kill(1, SIGUSR1); // SIGUSR1 signals "halt" to PID 1
 
-                        LOG_ERROR("heart: halt signaled. No longer petting the WDT");
+                        LOG_ERROR("heart: Guarded halt requested. No longer petting the WDT");
                         sync();
                     } else if (mp_len == 15 && memcmp(m.fill, "init_handshake", 14) == 0) {
                         /* Application has said that it's completed initialization */
+                        LOG_ERROR("heart: Received init handshake");
                         init_handshake_happened = 1;
                     } else if (mp_len == 7 && memcmp(m.fill, "snooze", 6) == 0) {
+                        LOG_ERROR("heart: Snoozing heart keepalive checks for 15 minutes");
                         snooze_requested = 1;
                     }
                     notify_ack();
