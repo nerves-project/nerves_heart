@@ -398,7 +398,7 @@ static void try_open_watchdog()
             elog(LOG_ERROR, "error or too short WDT timeout so using defaults!");
         }
 
-        elog(LOG_INFO, "kernel watchdog activated. WDT timeout %ds, WDT pet interval %ds, VM timeout %ds, initial grace period %ds", wdt_timeout, wdt_pet_timeout, heart_beat_timeout, (int) init_grace_time);
+        elog(LOG_INFO, "kernel watchdog activated. WDT timeout %ds, WDT pet interval %ds, VM timeout %ds, initial grace period %lds", wdt_timeout, wdt_pet_timeout, heart_beat_timeout, (long) init_grace_time);
     } else {
         watchdog_open_retries--;
         if (watchdog_open_retries <= 0) {
@@ -647,38 +647,38 @@ static int message_loop()
                         stop_petting_watchdog();
                         kill(1, SIGTERM); // SIGTERM signals "reboot" to PID 1
 
-                        elog(LOG_ERROR, "Guarded reboot requested. No longer petting the WDT");
+                        elog(LOG_INFO, "Guarded reboot requested. No longer petting the WDT");
                         sync();
                     } else if (mp_len == 25 && memcmp(m.fill, "guarded_immediate_reboot", 24) == 0) {
                         stop_petting_watchdog();
                         reboot(LINUX_REBOOT_CMD_RESTART);
 
-                        elog(LOG_ERROR, "Guarded immediate reboot requested. No longer petting the WDT");
+                        elog(LOG_INFO, "Guarded immediate reboot requested. No longer petting the WDT");
                      } else if (mp_len == 17 && memcmp(m.fill, "guarded_poweroff", 16) == 0) {
                         pet_watchdog(now);
                         stop_petting_watchdog();
                         kill(1, SIGUSR2); // SIGUSR2 signals "poweroff" to PID 1
 
-                        elog(LOG_ERROR, "Guarded poweroff requested. No longer petting the WDT");
+                        elog(LOG_INFO, "Guarded poweroff requested. No longer petting the WDT");
                         sync();
                     } else if (mp_len == 27 && memcmp(m.fill, "guarded_immediate_poweroff", 26) == 0) {
                         stop_petting_watchdog();
                         reboot(LINUX_REBOOT_CMD_POWER_OFF);
 
-                        elog(LOG_ERROR, "Guarded immediate poweroff requested. No longer petting the WDT");
+                        elog(LOG_INFO, "Guarded immediate poweroff requested. No longer petting the WDT");
                     } else if (mp_len == 13 && memcmp(m.fill, "guarded_halt", 12) == 0) {
                         pet_watchdog(now);
                         stop_petting_watchdog();
                         kill(1, SIGUSR1); // SIGUSR1 signals "halt" to PID 1
 
-                        elog(LOG_ERROR, "Guarded halt requested. No longer petting the WDT");
+                        elog(LOG_INFO, "Guarded halt requested. No longer petting the WDT");
                         sync();
                     } else if (mp_len == 15 && memcmp(m.fill, "init_handshake", 14) == 0) {
                         /* Application has said that it's completed initialization */
-                        elog(LOG_ERROR, "Received init handshake");
+                        elog(LOG_INFO, "Received init handshake");
                         init_handshake_happened = 1;
                     } else if (mp_len == 7 && memcmp(m.fill, "snooze", 6) == 0) {
-                        elog(LOG_ERROR, "Snoozing heart keepalive checks for 15 minutes");
+                        elog(LOG_WARNING, "Snoozing heart keepalive checks for 15 minutes");
                         snooze_requested = 1;
                     }
                     notify_ack();
