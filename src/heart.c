@@ -336,7 +336,7 @@ static void try_open_watchdog()
             elog(ELOG_ERROR, "error or too short WDT timeout so using defaults!");
         }
 
-        elog(ELOG_INFO, "kernel watchdog activated. WDT timeout %ds, WDT pet interval %ds, VM timeout %ds, initial grace period %lds", wdt_timeout, wdt_pet_timeout, heart_beat_timeout, (long) init_grace_time);
+        elog(ELOG_INFO | ELOG_PMSG, "kernel watchdog activated. WDT timeout %ds, WDT pet interval %ds, VM timeout %ds, initial grace period %lds", wdt_timeout, wdt_pet_timeout, heart_beat_timeout, (long) init_grace_time);
     } else {
         watchdog_open_retries--;
         if (watchdog_open_retries <= 0) {
@@ -429,7 +429,7 @@ int main(int argc, char **argv)
 {
     set_logging_verbosity();
 
-    elog(ELOG_INFO, "" PROGRAM_NAME " v" PROGRAM_VERSION_STR " started.");
+    elog(ELOG_INFO | ELOG_PMSG, PROGRAM_NAME " " PROGRAM_VERSION_STR);
 
     // Assume that the handshake happened and this fixes it if a timeout was specified
     init_handshake_happened = 1;
@@ -585,38 +585,38 @@ static int message_loop()
                         stop_petting_watchdog();
                         kill(1, SIGTERM); // SIGTERM signals "reboot" to PID 1
 
-                        elog(ELOG_INFO, "Guarded reboot requested. No longer petting the WDT");
+                        elog(ELOG_INFO | ELOG_PMSG, "Guarded reboot requested. No longer petting the WDT");
                         sync();
                     } else if (mp_len == 25 && memcmp(m.fill, "guarded_immediate_reboot", 24) == 0) {
                         stop_petting_watchdog();
                         reboot(LINUX_REBOOT_CMD_RESTART);
 
-                        elog(ELOG_INFO, "Guarded immediate reboot requested. No longer petting the WDT");
+                        elog(ELOG_INFO | ELOG_PMSG, "Guarded immediate reboot requested. No longer petting the WDT");
                      } else if (mp_len == 17 && memcmp(m.fill, "guarded_poweroff", 16) == 0) {
                         pet_watchdog(now);
                         stop_petting_watchdog();
                         kill(1, SIGUSR2); // SIGUSR2 signals "poweroff" to PID 1
 
-                        elog(ELOG_INFO, "Guarded poweroff requested. No longer petting the WDT");
+                        elog(ELOG_INFO | ELOG_PMSG, "Guarded poweroff requested. No longer petting the WDT");
                         sync();
                     } else if (mp_len == 27 && memcmp(m.fill, "guarded_immediate_poweroff", 26) == 0) {
                         stop_petting_watchdog();
                         reboot(LINUX_REBOOT_CMD_POWER_OFF);
 
-                        elog(ELOG_INFO, "Guarded immediate poweroff requested. No longer petting the WDT");
+                        elog(ELOG_INFO | ELOG_PMSG, "Guarded immediate poweroff requested. No longer petting the WDT");
                     } else if (mp_len == 13 && memcmp(m.fill, "guarded_halt", 12) == 0) {
                         pet_watchdog(now);
                         stop_petting_watchdog();
                         kill(1, SIGUSR1); // SIGUSR1 signals "halt" to PID 1
 
-                        elog(ELOG_INFO, "Guarded halt requested. No longer petting the WDT");
+                        elog(ELOG_INFO | ELOG_PMSG, "Guarded halt requested. No longer petting the WDT");
                         sync();
                     } else if (mp_len == 15 && memcmp(m.fill, "init_handshake", 14) == 0) {
                         /* Application has said that it's completed initialization */
-                        elog(ELOG_INFO, "Received init handshake");
+                        elog(ELOG_INFO | ELOG_PMSG, "Received init handshake");
                         init_handshake_happened = 1;
                     } else if (mp_len == 7 && memcmp(m.fill, "snooze", 6) == 0) {
-                        elog(ELOG_WARNING, "Snoozing heart keepalive checks for 15 minutes");
+                        elog(ELOG_WARNING | ELOG_PMSG, "Snoozing heart keepalive checks for 15 minutes");
                         snooze_requested = 1;
                     }
                     notify_ack();
@@ -660,7 +660,7 @@ kill_old_erlang(int reason)
 
     if (heart_beat_kill_pid != 0) {
         if (reason == R_CLOSED) {
-            elog(ELOG_INFO, "Wait 5 seconds for Erlang to terminate nicely");
+            elog(ELOG_INFO | ELOG_PMSG, "Wait 5 seconds for Erlang to terminate nicely");
             for (i=0; i < 5; ++i) {
                res = kill(heart_beat_kill_pid, 0); /* check if alive */
                if (res < 0 && errno == ESRCH)
