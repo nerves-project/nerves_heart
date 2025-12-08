@@ -1,5 +1,18 @@
 # Changelog
 
+## v2.5.0
+
+This release clarifies copyright and licensing using the REUSE specification.
+Licensing remains Apache 2.0.
+
+* Changes
+  * Refactor logging so that log severities get maintained when logging to
+    `/dev/kmsg`. Previously all log messages were warning severity. With this
+    release, most messages change to either error or info severity.
+  * Add support for logging breadcrumbs to Linux pstore's `/dev/pmsg0` endpoint
+    to make it easier to debug unexpected watchdog or heartbeat related issues. See
+    `README.md` for details.
+
 ## v2.4.0
 
 * Changes
